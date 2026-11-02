@@ -9,10 +9,15 @@ function key(): Buffer {
   if (cachedKey) return cachedKey;
   let secret = process.env.APP_SECRET;
   if (!secret) {
-    if (process.env.NODE_ENV === "production" && process.env.DEMO_MODE !== "true") {
-      throw new Error("APP_SECRET must be set in production");
+    if (process.env.VERCEL) {
+      // Each serverless instance would generate its own secret and sessions would randomly break.
+      throw new Error("APP_SECRET must be set on Vercel (Settings → Environment Variables).");
     }
-    const file = process.env.VERCEL ? "/tmp/.roomsplit-secret" : path.join(process.cwd(), "data", ".secret");
+    // Single-machine runs (dev or local `npm start`): persist a generated secret next to the database.
+    const file = path.join(path.dirname(process.env.DATABASE_PATH || path.join(process.cwd(), "data", "roomsplit.db")), ".secret");
+    if (process.env.NODE_ENV === "production" && !fs.existsSync(file)) {
+      console.warn(`[roomsplit] APP_SECRET is not set — generated one at ${file}. Set APP_SECRET for real deployments.`);
+    }
     fs.mkdirSync(path.dirname(file), { recursive: true });
     if (!fs.existsSync(file)) fs.writeFileSync(file, crypto.randomBytes(32).toString("hex"), { mode: 0o600 });
     secret = fs.readFileSync(file, "utf8").trim();

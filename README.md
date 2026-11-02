@@ -12,17 +12,20 @@ npm run seed      # optional: creates the demo group (otherwise it's created on 
 npm run dev       # http://localhost:3000  → "Explore Demo"
 ```
 
-Production-style run:
+Production-style run on your own machine:
 
 ```bash
+npm install        # after every pull — picks up dependency updates
 npm run build
-APP_SECRET=$(openssl rand -hex 32) npm start
+DEMO_MODE=true npm start   # DEMO_MODE=true keeps the persona switcher / Explore Demo available
 ```
+
+Without `APP_SECRET`, a local `npm start` generates one in `data/.secret` and prints a warning. On Vercel, `APP_SECRET` is required.
 
 | Env var | Default | Purpose |
 |---|---|---|
 | `DATABASE_PATH` | `./data/roomsplit.db` | SQLite file |
-| `APP_SECRET` | auto-generated `data/.secret` in dev | HMAC key for token hashing, AES key for stored invite links. **Required in production.** |
+| `APP_SECRET` | auto-generated `data/.secret` on a single machine | HMAC key for token hashing, AES key for stored invite links. **Required on Vercel / multi-instance hosts.** |
 | `DEMO_MODE` | on in dev, off in production | `true` enables the persona switcher in production; `false` disables it everywhere |
 | `DEMO_ACCESS_KEY` | unset | If set, `/demo` requires `?key=<value>` |
 | `GEMINI_API_KEY` | unset | Enables photo analysis for listing import (free tier at aistudio.google.com) |
