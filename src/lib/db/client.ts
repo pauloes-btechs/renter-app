@@ -7,7 +7,10 @@ type DB = Database.Database;
 const g = globalThis as unknown as { __roomsplitDb?: { path: string; db: DB } };
 
 export function dbPath(): string {
-  return process.env.DATABASE_PATH || path.join(process.cwd(), "data", "roomsplit.db");
+  if (process.env.DATABASE_PATH) return process.env.DATABASE_PATH;
+  // Serverless hosts (Vercel) have a read-only project dir; only /tmp is writable and it is ephemeral.
+  if (process.env.VERCEL) return "/tmp/roomsplit.db";
+  return path.join(process.cwd(), "data", "roomsplit.db");
 }
 
 export function getDb(): DB {

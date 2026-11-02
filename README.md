@@ -26,6 +26,14 @@ APP_SECRET=$(openssl rand -hex 32) npm start
 | `DEMO_MODE` | on in dev, off in production | `true` enables the persona switcher in production; `false` disables it everywhere |
 | `DEMO_ACCESS_KEY` | unset | If set, `/demo` requires `?key=<value>` |
 
+## Deploying to Vercel (demo)
+
+1. Import the GitHub repo into Vercel. The framework is auto-detected, and `engines.node` pins Node 22.
+2. Set these environment variables: `DEMO_MODE=true` and `APP_SECRET=<long random string>`. Optionally set `DEMO_ACCESS_KEY` to protect `/demo`.
+3. Deploy, then open `/demo`.
+
+> Note: on Vercel, SQLite runs in `/tmp`, which is temporary. Data can reset when a server instance restarts, and separate instances don't share data. That's fine for a demo, but not for real groups. For production, move the data layer to a hosted Postgres database such as Supabase or Neon (see "Design decisions"), or run on a host with a persistent disk such as Railway, Render or Fly.io, with `DATABASE_PATH` pointing at a mounted volume.
+
 ## Tests
 
 ```bash

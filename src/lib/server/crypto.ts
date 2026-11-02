@@ -12,7 +12,7 @@ function key(): Buffer {
     if (process.env.NODE_ENV === "production" && process.env.DEMO_MODE !== "true") {
       throw new Error("APP_SECRET must be set in production");
     }
-    const file = path.join(process.cwd(), "data", ".secret");
+    const file = process.env.VERCEL ? "/tmp/.roomsplit-secret" : path.join(process.cwd(), "data", ".secret");
     fs.mkdirSync(path.dirname(file), { recursive: true });
     if (!fs.existsSync(file)) fs.writeFileSync(file, crypto.randomBytes(32).toString("hex"), { mode: 0o600 });
     secret = fs.readFileSync(file, "utf8").trim();
