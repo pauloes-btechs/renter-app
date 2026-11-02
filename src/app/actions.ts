@@ -165,3 +165,8 @@ export async function inspectListingAction(groupId: string, url: string, details
   const r = await run((u) => updatePropertyDetails(u, groupId, { ...details, listingUrl: url }));
   return r.ok ? { ok: true as const, data: a.message } : r;
 }
+
+export async function applyListingImportAction(groupId: string, input: Parameters<typeof import("@/lib/server/services/groups").applyListingImport>[2]) {
+  const { applyListingImport } = await import("@/lib/server/services/groups");
+  return run((u) => applyListingImport(u, groupId, input));
+}

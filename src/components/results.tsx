@@ -1,6 +1,6 @@
 import type { GroupView, ProposalView } from "@/lib/server/views";
 import { formatBps, formatMoney } from "@/lib/engine/money";
-import { RoomArt } from "./RoomArt";
+import { RoomImage } from "./RoomArt";
 import { Avatar, Badge, Card, Progress, cx, pct } from "./ui";
 
 const STRATEGY_TONE: Record<string, "pine" | "clay" | "ok" | "warn"> = { balanced: "pine", budget: "ok", preference: "clay", auction: "warn" };
@@ -30,7 +30,7 @@ export function AllocationMap({ view, proposal, compact = false }: { view: Group
         const mine = party?.isMine;
         return (
           <Card key={r.id} className={cx("overflow-hidden", mine && "ring-2 ring-pine-500", !a && "opacity-60")}>
-            <RoomArt kind={r.imageKey} className="block aspect-[16/10] w-full" title={r.name} />
+            <RoomImage room={r} className="block aspect-[16/10] w-full" title={r.name} />
             <div className="p-4">
               <div className="text-xs text-ink-400">{r.shortName}</div>
               <div className="font-display text-lg leading-tight">{r.name}</div>

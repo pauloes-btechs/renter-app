@@ -25,6 +25,9 @@ APP_SECRET=$(openssl rand -hex 32) npm start
 | `APP_SECRET` | auto-generated `data/.secret` in dev | HMAC key for token hashing, AES key for stored invite links. **Required in production.** |
 | `DEMO_MODE` | on in dev, off in production | `true` enables the persona switcher in production; `false` disables it everywhere |
 | `DEMO_ACCESS_KEY` | unset | If set, `/demo` requires `?key=<value>` |
+| `ANTHROPIC_API_KEY` | unset | Enables photo analysis for listing import |
+| `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Vision model used for listing import |
+| `LISTING_ANALYZER` | unset | `mock` = offline analyzer (tests/demos) |
 
 ## Deploying to Vercel (demo)
 
@@ -37,7 +40,7 @@ APP_SECRET=$(openssl rand -hex 32) npm start
 ## Tests
 
 ```bash
-npm test            # 59 unit + integration tests (engine, auction, services, authorization, concurrency)
+npm test            # 69 unit + integration tests (engine, auction, services, authorization, concurrency)
 npm run test:e2e    # Playwright: multi-browser journeys, mobile + desktop screenshots → e2e/screenshots/
 npm run typecheck
 ```
@@ -111,6 +114,35 @@ PartyCost(p) = n[p] × SharedCostPerPerson + RoomCost(room(p))
 4. **Proposals:** each strategy's winner is shown. When several strategies pick the same assignment, that is shown as an overlap rather than inventing a different answer. If fewer than three distinct plans exist, the next-best feasible alternatives fill the gap. Ties are broken by a stable assignment key, so identical inputs always give identical rankings.
 5. **Engines:** exhaustive enumeration with static pruning is used up to 8! = 40,320 assignments. Beyond that, a deterministic local search (swaps and moves) takes over, behind the same `AssignmentOptimizer` interface. A mixed-integer or CP-SAT solver can be added the same way.
 6. **No feasible plan:** you get a diagnosis instead. It names parties with no workable room, applies Hall's-condition checks for groups of parties competing for too few rooms, flags hard budgets below the lowest possible price, and suggests concrete fixes.
+
+## Listing import (photos → bedrooms)
+
+On **Property → Import from listing**, the organizer pastes the listing link, adds the listing's photos (drag and drop, file picker, or pasted screenshots, up to 16), and copies in the "Where you'll sleep" and "What this place offers" sections.
+
+Roomsplit doesn't fetch Airbnb or Vrbo pages itself, because their terms prohibit automated access. The organizer supplies the content from their own browser session.
+
+1. **Photos are compressed in the browser.** Each one is downscaled to 1024 px before upload.
+2. **A vision model reads the photos and text.** This is Claude, configured with `ANTHROPIC_API_KEY` (optional `ANTHROPIC_MODEL`, default `claude-sonnet-5-5`). It groups the photos into bedrooms. For each room it returns:
+   - beds and their sizes
+   - relative room size
+   - ensuite bathroom
+   - walk-in closet
+   - view quality, plus a ranking of views across rooms
+   - other room-specific features
+
+   It returns these as structured data through a forced tool call.
+3. **A deterministic mapper turns that into editable room drafts** (`src/lib/ingestion/analysis.ts`, unit-tested). It derives:
+   - capacity
+   - number of sleeping surfaces
+   - bunks
+   - the matching attributes used for scoring
+   - a suggested pricing weight (averaging 1.00)
+   - a "Best view in the house" tag for the room with the top view
+
+   **Property-wide amenities (air conditioning, heating, Wi-Fi, fans, linens, …) are applied to every room and never used to tell rooms apart.** This holds even if the model lists one of them under a specific room.
+4. **The organizer reviews every room and applies.** They can edit names, beds, sleeping capacity, weights, ensuite and closet before applying. Applying replaces the bedrooms and stores each room's cover photo. It also invalidates any proposal and reopens submitted questionnaires so parties re-rank the new rooms; their other answers are kept.
+
+For tests and offline demos, set `LISTING_ANALYZER=mock` to get an analysis built from the pasted text without a network call.
 
 ## Room auction (price discovery)
 

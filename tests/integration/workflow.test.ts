@@ -252,3 +252,30 @@ describe("invitations & membership", () => {
     expect(redeemAccessLink(t1)).toBeNull();
   });
 });
+
+describe("listing import", () => {
+  it("replaces bedrooms, reopens questionnaires, invalidates proposals; organizer only", async () => {
+    const { applyListingImport } = await import("@/lib/server/services/groups");
+    const { analysisToDraft } = await import("@/lib/ingestion/analysis");
+    const { MockListingAnalyzer } = await import("@/lib/ingestion/analyzer");
+    const s = seedDemo();
+    const draft = analysisToDraft(await new MockListingAnalyzer().analyze({ text: "Bedroom 1: 1 king bed\nBedroom 2: 1 queen bed\nBedroom 3: 1 queen bed\nBedroom 4: 2 twin beds\nBedroom 5: 1 full bed", photos: [] }));
+    const payload = {
+      listingUrl: "https://www.airbnb.com/rooms/123",
+      sharedAmenities: draft.sharedAmenities,
+      rooms: draft.rooms.map((r) => ({ ...r, photoData: "data:image/jpeg;base64,AAAA" })),
+    };
+    expect(() => applyListingImport(s.parties[2].members[0], s.groupId, payload)).toThrow(/organizer/);
+    applyListingImport(s.organizerId, s.groupId, payload);
+    const rooms = listRooms(getPropertyForGroup(s.groupId).id);
+    expect(rooms).toHaveLength(5);
+    expect(rooms[0].photo_data).toMatch(/^data:image/);
+    expect(getGroup(s.groupId)!.status).toBe("collecting");
+    expect(selectedProposal(getDb(), s.groupId)).toBeUndefined();
+    expect(getPreferences(s.parties[0].id)).toBeUndefined();
+    // Drafts survive, so resubmitting is one click; rankings now cover the new rooms.
+    const d = getDraft(s.organizerId, s.parties[0].id);
+    expect(d.idealBudgetCents).toBe(145_000);
+    expect(d.roomRanking.sort()).toEqual(rooms.map((r) => r.id).sort());
+  });
+});

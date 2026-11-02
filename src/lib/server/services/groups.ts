@@ -349,3 +349,55 @@ export function updateRules(actorId: string, groupId: string, raw: z.input<typeo
     bumpVersion(d, groupId);
   });
 }
+
+const photoData = z
+  .string()
+  .max(1_500_000)
+  .regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/, "Invalid photo");
+
+export const listingImportSchema = z.object({
+  listingUrl: z.string().trim().max(500).optional().or(z.literal("")),
+  propertyName: z.string().trim().max(80).optional().or(z.literal("")),
+  sharedAmenities: z.array(z.string().trim().min(1).max(60)).max(40),
+  rooms: z.array(roomSchema.omit({ id: true }).extend({ photoData: photoData.nullable().optional() })).min(1).max(30),
+});
+
+/**
+ * Replace the property's bedrooms with reviewed drafts from a listing import.
+ * Rooms change completely, so submitted questionnaires are reopened (drafts keep everyone's answers;
+ * only the room ranking needs redoing) and any proposal is invalidated.
+ */
+export function applyListingImport(actorId: string, groupId: string, raw: z.input<typeof listingImportSchema>) {
+  const input = listingImportSchema.parse(raw);
+  return tx((d) => {
+    const g = requireOrganizer(d, groupId, actorId);
+    assertNotFinalized(g);
+    const p = getPropertyForGroup(groupId, d);
+    materialChange(d, groupId, actorId, "bedrooms replaced from listing import");
+    d.prepare("DELETE FROM rooms WHERE property_id=?").run(p.id);
+    input.rooms.forEach((r, i) => {
+      const id = insertRoomFromTemplate(
+        d,
+        p.id,
+        {
+          key: "import", name: r.name, shortName: r.shortName || `Bedroom ${i + 1}`, bedConfig: r.bedConfig, capacity: r.capacity, bedCount: r.bedCount,
+          hasBunk: r.hasBunk, accessible: r.accessible, weightMilli: r.weightMilli, qualityRating: r.qualityRating, description: r.description,
+          imageKey: r.imageKey, attributes: r.attributes, amenities: r.amenities.map((label) => ({ label, icon: "dot" })),
+        },
+        i,
+      );
+      if (r.photoData) d.prepare("UPDATE rooms SET photo_data=? WHERE id=?").run(r.photoData, id);
+    });
+    const reopened = d.prepare("DELETE FROM party_preferences WHERE party_id IN (SELECT id FROM parties WHERE group_id=?)").run(groupId).changes;
+    d.prepare("UPDATE properties SET shared_amenities_json=?, listing_url=COALESCE(?, listing_url), source_kind='import', name=COALESCE(?, name) WHERE id=?").run(
+      JSON.stringify(input.sharedAmenities), input.listingUrl || null, input.propertyName || null, p.id,
+    );
+    logActivity(d, groupId, actorId, "property.imported", `${input.rooms.length} bedrooms imported from the listing${reopened ? ` — ${reopened} part${reopened === 1 ? "y needs" : "ies need"} to re-rank rooms` : ""}`);
+    if (g.status !== "draft") {
+      d.prepare("UPDATE groups SET status='collecting' WHERE id=? AND status IN ('ready','proposed','voting','approved')").run(groupId);
+      recomputeStatus(d, groupId);
+    }
+    bumpVersion(d, groupId);
+    return { rooms: input.rooms.length, reopened };
+  });
+}

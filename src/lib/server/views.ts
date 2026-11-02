@@ -52,6 +52,7 @@ export function getGroupView(groupId: string, viewerId: string) {
     qualityRating: r.quality_rating,
     description: r.description,
     imageKey: r.image_key as "master" | "view" | "comfort" | "bunk" | "generic",
+    photo: r.photo_data,
     attributes: JSON.parse(r.attributes_json) as Record<AttributeKey, number>,
     amenities: amenities.filter((a) => a.room_id === r.id).map((a) => ({ label: a.label, icon: a.icon })),
   }));

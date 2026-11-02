@@ -282,4 +282,7 @@ CREATE INDEX activity_group ON activity_events(group_id, created_at);
 ALTER TABLE pricing_configurations ADD COLUMN method TEXT NOT NULL DEFAULT 'weighted' CHECK (method IN ('weighted','hybrid','auction'));
 ALTER TABLE proposal_versions ADD COLUMN auction_json TEXT;
 `,
+  /* 3 — listing import: per-room photo */ `
+ALTER TABLE rooms ADD COLUMN photo_data TEXT;
+`,
 ];

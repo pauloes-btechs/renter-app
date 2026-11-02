@@ -29,7 +29,7 @@ export interface PropertyRow {
 export interface RoomRow {
   id: string; property_id: string; name: string; short_name: string; sort: number; bed_config: string; capacity: number;
   bed_count: number; has_bunk: number; accessible: number; weight_milli: number; quality_rating: number;
-  attributes_json: string; image_key: string; description: string;
+  attributes_json: string; image_key: string; description: string; photo_data: string | null;
 }
 export interface PartyRow {
   id: string; group_id: string; slot_label: string; name: string; sort: number; representative_user_id: string | null;

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { GroupNav } from "@/components/GroupNav";
 import { ActionButton } from "@/components/client";
 import { PersonalLink } from "@/components/PersonalLink";
-import { RoomArt } from "@/components/RoomArt";
+import { RoomImage } from "@/components/RoomArt";
 import { VotePanel } from "@/components/VotePanel";
 import { Avatar, Badge, ButtonLink, Card, Money, Notice, PageHeader, Progress, SectionTitle } from "@/components/ui";
 import { leavePartyAction } from "@/app/actions";
@@ -51,7 +51,7 @@ export default async function PartyPage({ params, searchParams }: { params: Prom
           {sel && mine && room && !stale ? (
             <Card className="overflow-hidden">
               <div className="grid sm:grid-cols-[1fr_1.2fr]">
-                <RoomArt kind={room.imageKey} className="block h-full min-h-48 w-full" title={room.name} />
+                <RoomImage room={room} className="block h-full min-h-48 w-full" title={room.name} />
                 <div className="p-6">
                   <div className="text-xs font-semibold uppercase tracking-wide text-pine-600">{view.group.status === "finalized" ? "Final assignment" : "Proposed assignment"}</div>
                   <div className="mt-1 font-display text-3xl" data-testid="my-room">{room.name}</div>

@@ -3,9 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
-  deleteRoomAction, inspectListingAction, setCostItemsAction, startCollectingAction, updatePricingAction, updatePropertyAction, updateRulesAction, upsertRoomAction,
+  deleteRoomAction, setCostItemsAction, startCollectingAction, updatePricingAction, updatePropertyAction, updateRulesAction, upsertRoomAction,
 } from "@/app/actions";
-import { RoomArt } from "@/components/RoomArt";
+import { RoomImage } from "@/components/RoomArt";
 import { Badge, Card, Notice, SectionTitle, btn, cx } from "@/components/ui";
 import { formatMoney } from "@/lib/engine/money";
 import { ATTRIBUTE_KEYS, PRIORITY_LABELS, type AttributeKey } from "@/lib/engine/types";
@@ -109,14 +109,10 @@ function Details({ view }: { view: GroupView }) {
         </label>
         <label><span className={lab}>Shared amenities (comma-separated)</span><input className={field} value={f.sharedAmenities} onChange={(e) => setF({ ...f, sharedAmenities: e.target.value })} /></label>
       </div>
-      <div className="mt-5 rounded-xl bg-sand-50 p-4">
-        <div className="text-sm font-medium">Import from a listing link</div>
-        <p className="text-xs text-ink-500">Paste an Airbnb, Vrbo or other listing URL. We record and recognize it; metadata import is manual for now (no scraping).</p>
-        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-          <input className={field + " !mt-0"} placeholder="https://www.airbnb.com/rooms/…" value={f.listingUrl} onChange={(e) => setF({ ...f, listingUrl: e.target.value })} aria-label="Listing URL" />
-          <button className={btn.secondary} disabled={pending || !f.listingUrl} onClick={() => save(() => inspectListingAction(view.group.id, f.listingUrl, payload()))}>Attach link</button>
-        </div>
-      </div>
+      <label className="mt-4 block">
+        <span className={lab}>Listing link</span>
+        <input className={field} placeholder="https://www.airbnb.com/rooms/…" value={f.listingUrl} onChange={(e) => setF({ ...f, listingUrl: e.target.value })} aria-label="Listing URL" />
+      </label>
       <div className="mt-4 flex items-center justify-end gap-3">
         <Msg msg={msg} />
         <button className={btn.primary} disabled={pending} onClick={() => save(() => updatePropertyAction(view.group.id, payload()))}>Save details</button>
@@ -257,7 +253,7 @@ function RoomEditor({ groupId, room, totalW, preview1, preview2, currency, canDe
   return (
     <div className="rounded-2xl border border-sand-200">
       <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
-        <RoomArt kind={f.imageKey} className="h-24 w-full shrink-0 rounded-xl sm:w-40" />
+        <RoomImage room={{ imageKey: f.imageKey, photo: room?.photo }} className="h-24 w-full shrink-0 rounded-xl sm:w-40" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-display text-lg">{f.name || "New bedroom"}</span>

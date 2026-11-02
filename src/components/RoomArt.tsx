@@ -90,3 +90,12 @@ export function HouseArt({ className }: { className?: string }) {
     </svg>
   );
 }
+
+/** Shows the room's imported listing photo when available, otherwise the illustration. */
+export function RoomImage({ room, className, title }: { room: { imageKey: string; photo?: string | null; name?: string }; className?: string; title?: string }) {
+  if (room.photo) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={room.photo} alt={title ?? room.name ?? "Room photo"} className={(className ?? "") + " object-cover"} loading="lazy" />;
+  }
+  return <RoomArt kind={room.imageKey} className={className} title={title ?? room.name} />;
+}

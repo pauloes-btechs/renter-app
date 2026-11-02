@@ -1,10 +1,11 @@
 import { GroupNav } from "@/components/GroupNav";
-import { RoomArt } from "@/components/RoomArt";
+import { RoomImage } from "@/components/RoomArt";
 import { Badge, Card, Money, Notice, PageHeader, SectionTitle } from "@/components/ui";
 import { loadView } from "@/lib/server/page";
 import { previewRoomPrice } from "@/lib/engine/pricing";
 import { formatBps } from "@/lib/engine/money";
 import { PropertyEditor } from "./editor";
+import { ListingImport } from "./listing-import";
 
 export const metadata = { title: "Property & bedrooms" };
 export default async function PropertyPage({ params }: { params: Promise<{ id: string }> }) {
@@ -25,7 +26,10 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
       />
       {locked && <Notice tone="warn" className="mb-6" title="Finalized">Reopen the agreement to make changes.</Notice>}
       {view.isOrganizer && !locked ? (
-        <PropertyEditor view={view} previews={{ one: prev1, two: prev2 }} />
+        <div className="space-y-6">
+          <ListingImport groupId={view.group.id} listingUrl={view.property.listingUrl ?? ""} roomCount={view.rooms.length} submittedCount={view.parties.filter((p) => p.submitted).length} />
+          <PropertyEditor view={view} previews={{ one: prev1, two: prev2 }} />
+        </div>
       ) : (
         <>
           <Card className="mb-6 p-6">
@@ -38,7 +42,7 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
           <div className="grid gap-4 sm:grid-cols-2">
             {view.rooms.map((r) => (
               <Card key={r.id} className="overflow-hidden">
-                <RoomArt kind={r.imageKey} className="block aspect-[16/9] w-full" />
+                <RoomImage room={r} className="block aspect-[16/9] w-full" />
                 <div className="p-5">
                   <div className="font-display text-xl">{r.name}</div>
                   <div className="text-sm text-ink-500">{r.bedConfig} · sleeps {r.capacity} · weight {(r.weightMilli / 1000).toFixed(2)} ({((r.weightMilli / totalW) * 100).toFixed(0)}% of bedroom pool)</div>

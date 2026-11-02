@@ -1,6 +1,6 @@
 import { GroupNav } from "@/components/GroupNav";
 import { ActionButton } from "@/components/client";
-import { RoomArt } from "@/components/RoomArt";
+import { RoomImage } from "@/components/RoomArt";
 import { Badge, ButtonLink, Card, EmptyState, Notice, PageHeader, SectionTitle } from "@/components/ui";
 import { applyMarketWeightsAction } from "@/app/actions";
 import { formatMoney } from "@/lib/engine/money";
@@ -50,7 +50,7 @@ export default async function Market({ params }: { params: Promise<{ groupId: st
               const demand = s ? s.bidCount / Math.max(1, view.parties.length) : 0;
               return (
                 <Card key={r.id} className="overflow-hidden">
-                  <RoomArt kind={r.imageKey} className="block aspect-[16/10] w-full" />
+                  <RoomImage room={r} className="block aspect-[16/10] w-full" />
                   <div className="p-4">
                     <div className="font-display text-lg">{r.name}</div>
                     <div className="mt-1 flex flex-wrap gap-1">

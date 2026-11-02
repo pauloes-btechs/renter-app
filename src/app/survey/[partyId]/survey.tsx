@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { saveDraftAction, shareDraftAction, submitPreferencesAction } from "@/app/actions";
-import { RoomArt } from "@/components/RoomArt";
+import { RoomImage } from "@/components/RoomArt";
 import { Badge, Card, Notice, btn, cx } from "@/components/ui";
 import { FIELD_LABELS, type QuestionnaireData } from "@/lib/domain/questionnaire";
 import { formatMoney } from "@/lib/engine/money";
@@ -275,7 +275,7 @@ export function Survey(p: Props) {
                 return (
                   <li key={id}>
                     <Card className={cx("flex flex-col overflow-hidden sm:flex-row", (refused || incompatible) && "opacity-60")}>
-                      <RoomArt kind={r.imageKey} className="h-32 w-full shrink-0 sm:h-auto sm:w-48" title={r.name} />
+                      <RoomImage room={r} className="h-32 w-full shrink-0 sm:h-auto sm:w-48" title={r.name} />
                       <div className="flex min-w-0 flex-1 flex-col gap-2 p-4">
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div>
@@ -335,7 +335,7 @@ export function Survey(p: Props) {
                 return (
                   <div key={id} className={cx("grid items-center gap-3 rounded-xl border border-sand-200 p-3 sm:grid-cols-[1fr_180px]", refused && "opacity-50")}>
                     <div className="flex items-center gap-3">
-                      <RoomArt kind={r.imageKey} className="h-12 w-20 shrink-0 rounded-lg" />
+                      <RoomImage room={r} className="h-12 w-20 shrink-0 rounded-lg" />
                       <div>
                         <div className="font-medium">{r.name}</div>
                         <div className="text-xs text-ink-500">Weighted price {m(previews[id])}{refused ? " · refused" : ""}</div>

@@ -8,7 +8,7 @@ export default defineConfig({
   reporter: [["list"]],
   use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
   webServer: {
-    command: `rm -rf .e2e-data && DATABASE_PATH=.e2e-data/e2e.db APP_SECRET=e2e DEMO_MODE=true npx next start -p ${PORT}`,
+    command: `rm -rf .e2e-data && DATABASE_PATH=.e2e-data/e2e.db APP_SECRET=e2e DEMO_MODE=true LISTING_ANALYZER=mock npx next start -p ${PORT}`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: false,
     timeout: 120_000,
