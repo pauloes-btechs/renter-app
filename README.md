@@ -25,9 +25,11 @@ APP_SECRET=$(openssl rand -hex 32) npm start
 | `APP_SECRET` | auto-generated `data/.secret` in dev | HMAC key for token hashing, AES key for stored invite links. **Required in production.** |
 | `DEMO_MODE` | on in dev, off in production | `true` enables the persona switcher in production; `false` disables it everywhere |
 | `DEMO_ACCESS_KEY` | unset | If set, `/demo` requires `?key=<value>` |
-| `ANTHROPIC_API_KEY` | unset | Enables photo analysis for listing import |
+| `GEMINI_API_KEY` | unset | Enables photo analysis for listing import (free tier at aistudio.google.com) |
+| `GEMINI_MODEL` | `gemini-flash-latest` | Gemini model for listing import |
+| `ANTHROPIC_API_KEY` | unset | Alternative analyzer (Claude) |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Vision model used for listing import |
-| `LISTING_ANALYZER` | unset | `mock` = offline analyzer (tests/demos) |
+| `LISTING_ANALYZER` | unset | Force `gemini`, `claude` or `mock` (offline, for tests/demos) |
 
 ## Deploying to Vercel (demo)
 
@@ -40,7 +42,7 @@ APP_SECRET=$(openssl rand -hex 32) npm start
 ## Tests
 
 ```bash
-npm test            # 69 unit + integration tests (engine, auction, services, authorization, concurrency)
+npm test            # 72 unit + integration tests (engine, auction, services, authorization, concurrency)
 npm run test:e2e    # Playwright: multi-browser journeys, mobile + desktop screenshots → e2e/screenshots/
 npm run typecheck
 ```
@@ -122,7 +124,7 @@ On **Property → Import from listing**, the organizer pastes the listing link, 
 Roomsplit doesn't fetch Airbnb or Vrbo pages itself, because their terms prohibit automated access. The organizer supplies the content from their own browser session.
 
 1. **Photos are compressed in the browser.** Each one is downscaled to 1024 px before upload.
-2. **A vision model reads the photos and text.** This is Claude, configured with `ANTHROPIC_API_KEY` (optional `ANTHROPIC_MODEL`, default `claude-sonnet-5-5`). It groups the photos into bedrooms. For each room it returns:
+2. **A vision model reads the photos and text.** This is Google Gemini, set with `GEMINI_API_KEY` (a free key from Google AI Studio; optional `GEMINI_MODEL`, default `gemini-flash-latest`), or Claude, set with `ANTHROPIC_API_KEY` (optional `ANTHROPIC_MODEL`). If both keys are set, Gemini is used. Note that Google may use free-tier inputs to improve its products, so avoid putting sensitive material through a free-tier key. It groups the photos into bedrooms. For each room it returns:
    - beds and their sizes
    - relative room size
    - ensuite bathroom

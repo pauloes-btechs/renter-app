@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { analysisToDraft, isSharedAmenity, type ListingAnalysis } from "@/lib/ingestion/analysis";
-import { ClaudeListingAnalyzer, MockListingAnalyzer } from "@/lib/ingestion/analyzer";
+import { ClaudeListingAnalyzer, GeminiListingAnalyzer, MockListingAnalyzer, getListingAnalyzer, toGeminiSchema } from "@/lib/ingestion/analyzer";
 
 const analysis: ListingAnalysis = {
   propertyName: "Cliff House",
@@ -82,5 +82,44 @@ describe("ClaudeListingAnalyzer", () => {
     const out = await new MockListingAnalyzer().analyze({ text: "Bedroom 1: 1 king bed\nBedroom 2: 1 queen bed\nBedroom 3: 2 twin beds\nBunk room: 1 bunk bed\nAir conditioning", photos: [] });
     expect(out.rooms).toHaveLength(4);
     expect(analysisToDraft(out).rooms[2].capacity).toBe(2);
+  });
+});
+
+describe("GeminiListingAnalyzer", () => {
+  it("sends inline images with a JSON response schema and parses the result", async () => {
+    let url = "";
+    let body: any;
+    let headers: any;
+    const fakeFetch = (async (u: string, init: RequestInit) => {
+      url = u;
+      body = JSON.parse(init.body as string);
+      headers = init.headers;
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(analysis) }] } }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const out = await new GeminiListingAnalyzer("g-key", "gemini-test", fakeFetch).analyze({ text: "x", photos: [{ dataUrl: "data:image/jpeg;base64,BBBB" }] });
+    expect(out.rooms).toHaveLength(4);
+    expect(url).toContain("/models/gemini-test:generateContent");
+    expect(headers["x-goog-api-key"]).toBe("g-key");
+    expect(body.contents[0].parts.some((p: any) => p.inline_data?.data === "BBBB")).toBe(true);
+    expect(body.generationConfig.responseMimeType).toBe("application/json");
+    expect(body.generationConfig.responseSchema.type).toBe("OBJECT");
+    expect(JSON.stringify(body.generationConfig.responseSchema)).not.toMatch(/minimum/);
+  });
+  it("explains free-tier quota errors and rejects non-JSON", async () => {
+    const quota = (async () => new Response("RESOURCE_EXHAUSTED", { status: 429 })) as unknown as typeof fetch;
+    await expect(new GeminiListingAnalyzer("k", "m", quota).analyze({ text: "x", photos: [] })).rejects.toThrow(/quota/);
+    const junk = (async () => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "not json" }] } }] }), { status: 200 })) as unknown as typeof fetch;
+    await expect(new GeminiListingAnalyzer("k", "m", junk).analyze({ text: "x", photos: [] })).rejects.toThrow(/JSON/);
+  });
+  it("is preferred when a Google key is set", () => {
+    const prev = { ...process.env };
+    process.env.GEMINI_API_KEY = "x";
+    delete process.env.LISTING_ANALYZER;
+    expect(getListingAnalyzer().name).toBe("gemini");
+    delete process.env.GEMINI_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "y";
+    expect(getListingAnalyzer().name).toBe("claude");
+    process.env = prev;
+    expect((toGeminiSchema({ type: "array", items: { type: "string" } }) as any).items.type).toBe("STRING");
   });
 });

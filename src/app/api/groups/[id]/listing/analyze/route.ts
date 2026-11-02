@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const analyzer = getListingAnalyzer();
   if (!analyzer.available())
     return NextResponse.json(
-      { error: "Photo analysis isn't configured on this server. Set ANTHROPIC_API_KEY (and optionally ANTHROPIC_MODEL), then redeploy.", code: "not_configured" },
+      { error: "Photo analysis isn't configured on this server. Set GEMINI_API_KEY (free from Google AI Studio) or ANTHROPIC_API_KEY, then redeploy.", code: "not_configured" },
       { status: 503 },
     );
   try {

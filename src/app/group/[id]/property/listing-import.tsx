@@ -178,7 +178,7 @@ export function ListingImport({ groupId, listingUrl, roomCount, submittedCount }
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <Badge tone="pine">{draft.rooms.length} bedrooms found</Badge>
-            <Badge>{analyzer === "mock" ? "Offline mock analyzer" : "AI photo analysis"}</Badge>
+            <Badge>{analyzer === "mock" ? "Offline mock analyzer" : analyzer === "gemini" ? "Analyzed with Google Gemini" : "Analyzed with Claude"}</Badge>
             <span className="text-ink-500">Review and correct before applying. Weights are suggestions (average 1.00).</span>
           </div>
           {draft.warnings.length > 0 && (

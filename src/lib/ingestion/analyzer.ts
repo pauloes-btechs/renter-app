@@ -177,7 +177,80 @@ export class MockListingAnalyzer implements ListingAnalyzer {
   }
 }
 
+/** Convert the JSON-Schema tool definition into Gemini's OpenAPI-subset responseSchema (uppercase types). */
+export function toGeminiSchema(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(toGeminiSchema);
+  if (!node || typeof node !== "object") return node;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+    if (k === "type" && typeof v === "string") out.type = v.toUpperCase();
+    else if (k === "minimum" || k === "maximum") continue; // not supported on all models; validated with zod instead
+    else out[k] = toGeminiSchema(v);
+  }
+  return out;
+}
+
+/** Google Gemini analyzer (free tier available via Google AI Studio). Uses JSON mode with a response schema. */
+export class GeminiListingAnalyzer implements ListingAnalyzer {
+  readonly name = "gemini";
+  constructor(
+    private apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+    private model = process.env.GEMINI_MODEL || "gemini-flash-latest",
+    private fetchImpl: typeof fetch = fetch,
+  ) {}
+  available() {
+    return !!this.apiKey;
+  }
+  async analyze(input: ListingInput): Promise<ListingAnalysis> {
+    if (!this.apiKey) throw new Error("GEMINI_API_KEY is not configured.");
+    const parts: unknown[] = [];
+    input.photos.forEach((p, i) => {
+      const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(p.dataUrl);
+      if (!m) return;
+      parts.push({ text: `Photo ${i}:` });
+      parts.push({ inline_data: { mime_type: m[1], data: m[2] } });
+    });
+    parts.push({
+      text: `Listing URL: ${input.listingUrl || "(not provided)"}\n\nListing text from the organizer:\n${input.text || "(none provided)"}\n\nAnalyze the bedrooms now and respond with JSON only.`,
+    });
+    const res = await this.fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:generateContent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": this.apiKey },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: ANALYSIS_INSTRUCTIONS.replace(`Call the ${TOOL_NAME} tool exactly once.`, "Return a single JSON object matching the response schema.") }] },
+        contents: [{ role: "user", parts }],
+        generationConfig: { responseMimeType: "application/json", responseSchema: toGeminiSchema(ANALYSIS_TOOL.input_schema), temperature: 0.2 },
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      const hint = res.status === 429 ? " Free-tier quota reached — try again in a minute or tomorrow." : "";
+      throw new Error(`Listing analysis failed (${res.status}).${hint} ${body.slice(0, 200)}`);
+    }
+    const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    const text = json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, ""));
+    } catch {
+      throw new Error("The analyzer did not return valid JSON.");
+    }
+    return listingAnalysisSchema.parse(parsed);
+  }
+}
+
+/**
+ * Analyzer selection: LISTING_ANALYZER=gemini|claude|mock forces one; otherwise a Google key
+ * (GEMINI_API_KEY / GOOGLE_API_KEY) selects Gemini, then ANTHROPIC_API_KEY selects Claude.
+ */
 export function getListingAnalyzer(): ListingAnalyzer {
-  if (process.env.LISTING_ANALYZER === "mock") return new MockListingAnalyzer();
-  return new ClaudeListingAnalyzer();
+  const forced = process.env.LISTING_ANALYZER;
+  if (forced === "mock") return new MockListingAnalyzer();
+  if (forced === "gemini") return new GeminiListingAnalyzer();
+  if (forced === "claude") return new ClaudeListingAnalyzer();
+  const gemini = new GeminiListingAnalyzer();
+  if (gemini.available()) return gemini;
+  const claude = new ClaudeListingAnalyzer();
+  if (claude.available()) return claude;
+  return gemini; // unavailable → route explains which key to set
 }
