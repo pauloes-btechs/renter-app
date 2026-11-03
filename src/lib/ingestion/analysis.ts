@@ -36,7 +36,28 @@ export const analyzedRoomSchema = z.object({
 });
 export type AnalyzedRoom = z.infer<typeof analyzedRoomSchema>;
 
+export const COST_KINDS = ["base", "cleaning", "tax", "service", "other"] as const;
+
+/** Whole-property facts read from the listing text. Amounts are in MAJOR currency units (e.g. dollars). */
+export const analyzedPropertySchema = z.object({
+  name: z.string().max(120).default(""),
+  location: z.string().max(120).default(""),
+  description: z.string().max(1000).default(""),
+  currency: z.string().regex(/^[A-Z]{3}$/).optional(),
+  checkIn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  checkOut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  nights: z.number().int().min(1).max(365).optional(),
+  maxGuests: z.number().int().min(1).max(100).optional(),
+  costItems: z
+    .array(z.object({ label: z.string().trim().min(1).max(60), kind: z.enum(COST_KINDS).default("other"), amount: z.number().min(0).max(1_000_000) }))
+    .max(12)
+    .default([]),
+  totalAmount: z.number().min(0).max(1_000_000).optional(),
+});
+export type AnalyzedProperty = z.infer<typeof analyzedPropertySchema>;
+
 export const listingAnalysisSchema = z.object({
+  property: analyzedPropertySchema.optional(),
   propertyName: z.string().max(120).optional().default(""),
   sharedAmenities: z.array(z.string().trim().min(1).max(60)).max(60).default([]),
   rooms: z.array(analyzedRoomSchema).max(30),
@@ -86,7 +107,22 @@ export interface RoomDraft {
   notes: string;
 }
 
+export interface PropertyDraft {
+  name: string;
+  location: string;
+  description: string;
+  currency: string | null;
+  checkIn: string | null;
+  checkOut: string | null;
+  nights: number | null;
+  maxGuests: number | null;
+  /** Line items in cents. Their sum is the rental total. */
+  costItems: { label: string; kind: (typeof COST_KINDS)[number]; amountCents: number }[];
+  totalCents: number | null;
+}
+
 export interface ImportDraft {
+  property: PropertyDraft;
   propertyName: string;
   sharedAmenities: string[];
   rooms: RoomDraft[];
@@ -192,5 +228,33 @@ export function analysisToDraft(raw: ListingAnalysis): ImportDraft {
     };
   });
 
-  return { propertyName: a.propertyName ?? "", sharedAmenities: [...shared.values()], rooms, warnings };
+  // Property facts: line items in cents; if the listing states a total that differs from the items, keep the
+  // stated total and add a balancing "Other fees" line so the total is always what the listing charges.
+  const pa = a.property;
+  const costItems = (pa?.costItems ?? []).map((c) => ({ label: c.label, kind: c.kind, amountCents: Math.round(c.amount * 100) })).filter((c) => c.amountCents > 0);
+  const itemsSum = costItems.reduce((x, c) => x + c.amountCents, 0);
+  const stated = pa?.totalAmount != null ? Math.round(pa.totalAmount * 100) : null;
+  if (stated != null && stated > 0) {
+    if (costItems.length === 0) costItems.push({ label: "Entire stay", kind: "base", amountCents: stated });
+    else if (stated !== itemsSum) {
+      const diff = stated - itemsSum;
+      if (diff > 0) costItems.push({ label: "Other fees (to match listing total)", kind: "other", amountCents: diff });
+      else warnings.push("The listed line items add up to more than the stated total — please check the cost breakdown.");
+    }
+  }
+  const totalCents = costItems.length ? costItems.reduce((x, c) => x + c.amountCents, 0) : null;
+  if (totalCents == null) warnings.push("No price found — enter the total for the stay.");
+  const property: PropertyDraft = {
+    name: (pa?.name || a.propertyName || "").trim(),
+    location: pa?.location ?? "",
+    description: pa?.description ?? "",
+    currency: pa?.currency ?? null,
+    checkIn: pa?.checkIn ?? null,
+    checkOut: pa?.checkOut ?? null,
+    nights: pa?.nights ?? null,
+    maxGuests: pa?.maxGuests ?? null,
+    costItems,
+    totalCents,
+  };
+  return { property, propertyName: property.name, sharedAmenities: [...shared.values()], rooms, warnings };
 }

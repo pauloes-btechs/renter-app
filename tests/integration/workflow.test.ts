@@ -279,3 +279,29 @@ describe("listing import", () => {
     expect(d.roomRanking.sort()).toEqual(rooms.map((r) => r.id).sort());
   });
 });
+
+describe("create group from listing", () => {
+  it("creates property, costs, dates and imported rooms in one step", async () => {
+    const g = createGroup({
+      organizerName: "Lia", groupName: "Cliffside", propertyName: "Cliffside Retreat", totalCents: 250_000, currency: "USD", partyCount: 2, maxPartySize: 2, sharedBps: 4000, organizerJoins: true,
+      listing: {
+        listingUrl: "https://www.airbnb.com/rooms/9", location: "Big Sur, California", description: "Ocean views.", checkIn: "2027-07-01", checkOut: "2027-07-05",
+        sharedAmenities: ["Air conditioning", "Wi-Fi"],
+        costItems: [{ label: "$450 x 4 nights", kind: "base", amountCents: 180_000 }, { label: "Cleaning fee", kind: "cleaning", amountCents: 70_000 }],
+        rooms: [
+          { name: "Primary suite", shortName: "Bedroom 1", bedConfig: "King bed", capacity: 2, bedCount: 1, hasBunk: false, accessible: false, weightMilli: 1200, qualityRating: 5, description: "", imageKey: "master", attributes: { privacy: 0.9, privateBath: 1, view: 0.5, bedComfort: 1, roomSize: 1, relaxation: 0.2, quality: 0.9 }, amenities: ["King bed", "Private ensuite bathroom"], photoData: "data:image/jpeg;base64,AAAA" },
+          { name: "Ocean room", shortName: "Bedroom 2", bedConfig: "Queen bed", capacity: 2, bedCount: 1, hasBunk: false, accessible: false, weightMilli: 800, qualityRating: 4, description: "", imageKey: "view", attributes: { privacy: 0.6, privateBath: 0, view: 1, bedComfort: 0.85, roomSize: 0.55, relaxation: 0.2, quality: 0.7 }, amenities: ["Queen bed", "Best view in the house"] },
+        ],
+      },
+    });
+    const prop = getPropertyForGroup(g.groupId);
+    expect(prop.location).toBe("Big Sur, California");
+    expect(prop.source_kind).toBe("import");
+    expect(JSON.parse(prop.shared_amenities_json)).toEqual(["Air conditioning", "Wi-Fi"]);
+    const rooms = listRooms(prop.id);
+    expect(rooms.map((r) => r.name)).toEqual(["Primary suite", "Ocean room"]);
+    expect(rooms[0].photo_data).toMatch(/^data:image/);
+    const total = getDb().prepare("SELECT SUM(amount_cents) t FROM property_cost_items WHERE property_id=?").get(prop.id) as { t: number };
+    expect(total.t).toBe(250_000);
+  });
+});

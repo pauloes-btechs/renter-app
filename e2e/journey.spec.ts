@@ -93,6 +93,7 @@ test("new organizer → invite → two members join one party independently → 
   const org = await newUser(browser);
   await org.page.goto("/");
   await org.page.getByRole("link", { name: "Start a group" }).first().click();
+  await org.page.getByTestId("skip-listing").click();
   await org.page.locator('input[name="organizerName"]').fill("Olivia Park");
   await org.page.locator('input[name="groupName"]').fill("Lake weekend");
   await org.page.locator('input[name="partyCount"]').fill("2");

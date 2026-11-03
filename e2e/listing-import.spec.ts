@@ -41,3 +41,47 @@ test("organizer imports bedrooms from listing photos + text, reviews, applies", 
   await expect(page.getByText("Waiting on 4 parties")).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("new group starts from a listing link: Airbnb asks for paste, then everything is prefilled", async ({ browser }) => {
+  const page = await (await browser.newContext()).newPage();
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/create");
+  await page.locator('input[name="listingUrl"]').fill("https://www.airbnb.com/rooms/987");
+  await page.getByTestId("analyze-create").click();
+  await expect(page.getByText(/Airbnb doesn't allow automated reading/)).toBeVisible();
+  await page.getByTestId("create-paste").fill(
+    [
+      "Cliffside Retreat with Hot Tub",
+      "Big Sur, California",
+      "$450 x 4 nights $1,800",
+      "Cleaning fee $250",
+      "Service fee $300",
+      "Taxes $150",
+      "Total $2,500",
+      "Where you'll sleep",
+      "Bedroom 1: 1 king bed",
+      "Bedroom 2: 1 queen bed",
+      "Bedroom 3: 2 twin beds",
+      "What this place offers",
+      "Air conditioning",
+      "Wifi",
+    ].join("\n"),
+  );
+  await page.getByTestId("create-files").setInputFiles(Array.from({ length: 3 }, (_, i) => ({ name: `r${i}.png`, mimeType: "image/png", buffer: PNG })));
+  await page.getByTestId("analyze-create").click();
+  await expect(page.getByText("Imported from the listing")).toBeVisible();
+  await expect(page.locator('input[name="propertyName"]')).toHaveValue("Cliffside Retreat with Hot Tub");
+  await expect(page.locator('input[name="location"]')).toHaveValue("Big Sur, California");
+  await expect(page.getByTestId("create-total")).toHaveText("$2,500.00");
+  await expect(page.getByTestId("create-room")).toHaveCount(3);
+  await expect(page.locator('input[name="partyCount"]')).toHaveValue("3");
+  await page.screenshot({ path: "e2e/screenshots/desktop-create-from-listing.png", fullPage: true, animations: "disabled" });
+  await page.locator('input[name="organizerName"]').fill("Lia Moreno");
+  await page.getByTestId("create-submit").click();
+  await page.waitForURL(/\/property$/);
+  await expect(page.getByRole("heading", { name: "Cliffside Retreat with Hot Tub" })).toBeVisible();
+  await expect(page.getByText("$2,500.00").first()).toBeVisible();
+  await expect(page.getByText("Primary suite").first()).toBeVisible();
+  expect(errors).toEqual([]);
+});

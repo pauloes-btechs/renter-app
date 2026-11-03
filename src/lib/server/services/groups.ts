@@ -79,21 +79,51 @@ export function insertRoomFromTemplate(d: DB, propertyId: string, t: RoomTemplat
  * Creates the organizer (if needed), the property (seeded with the demo house template), the stay,
  * the group, pricing config and empty party slots. The organizer optionally takes Party A.
  */
-export function createGroup(raw: CreateGroupInput, existingUserId?: string | null, opts: { isDemo?: boolean } = {}) {
+export function createGroup(raw: CreateGroupInput & { listing?: z.input<typeof groupListingSchema> }, existingUserId?: string | null, opts: { isDemo?: boolean } = {}) {
   const input = createGroupSchema.parse(raw);
+  // Parsed at call time (schema is declared further down the module).
+  const listing = raw.listing ? groupListingSchema.parse(raw.listing) : null;
+  const costItems = listing?.costItems.length ? listing.costItems : [{ label: "Entire stay", kind: "base" as const, amountCents: input.totalCents }];
+  const total = costItems.reduce((a, c) => a + c.amountCents, 0);
+  if (total <= 0) throw invalid("Total rental cost must be greater than zero.");
   return tx((d) => {
     const userId = existingUserId ?? createUser(d, input.organizerName, { isDemo: opts.isDemo });
     const sessionToken = existingUserId ? null : createSession(d, userId);
     const propertyId = newId("prop");
-    d.prepare("INSERT INTO properties (id, name, location, description, currency, shared_amenities_json) VALUES (?,?,?,?,?,?)").run(
-      propertyId, input.propertyName, DEMO_PROPERTY.location, DEMO_PROPERTY.description, input.currency, JSON.stringify(DEMO_PROPERTY.sharedAmenities),
+    d.prepare("INSERT INTO properties (id, name, location, description, currency, shared_amenities_json, source_kind, listing_url) VALUES (?,?,?,?,?,?,?,?)").run(
+      propertyId,
+      input.propertyName,
+      listing ? listing.location : DEMO_PROPERTY.location,
+      listing ? listing.description : DEMO_PROPERTY.description,
+      input.currency,
+      JSON.stringify(listing ? listing.sharedAmenities : DEMO_PROPERTY.sharedAmenities),
+      listing?.rooms.length ? "import" : listing?.listingUrl ? "listing_url" : "manual",
+      listing?.listingUrl || null,
     );
-    d.prepare("INSERT INTO property_cost_items (id, property_id, label, kind, amount_cents, sort) VALUES (?,?,?,?,?,0)").run(
-      newId("cost"), propertyId, "Entire stay", "base", input.totalCents,
+    costItems.forEach((c, i) =>
+      d.prepare("INSERT INTO property_cost_items (id, property_id, label, kind, amount_cents, sort) VALUES (?,?,?,?,?,?)").run(newId("cost"), propertyId, c.label, c.kind, c.amountCents, i),
     );
-    DEMO_ROOMS.forEach((t, i) => insertRoomFromTemplate(d, propertyId, t, i));
+    if (listing?.rooms.length) {
+      listing.rooms.forEach((r, i) => {
+        const id = insertRoomFromTemplate(
+          d,
+          propertyId,
+          {
+            key: "import", name: r.name, shortName: r.shortName || `Bedroom ${i + 1}`, bedConfig: r.bedConfig, capacity: r.capacity, bedCount: r.bedCount,
+            hasBunk: r.hasBunk, accessible: r.accessible, weightMilli: r.weightMilli, qualityRating: r.qualityRating, description: r.description,
+            imageKey: r.imageKey, attributes: r.attributes, amenities: r.amenities.map((label) => ({ label, icon: "dot" })),
+          },
+          i,
+        );
+        if (r.photoData) d.prepare("UPDATE rooms SET photo_data=? WHERE id=?").run(r.photoData, id);
+      });
+    } else {
+      DEMO_ROOMS.forEach((t, i) => insertRoomFromTemplate(d, propertyId, t, i));
+    }
     const stayId = newId("stay");
-    d.prepare("INSERT INTO stays (id, property_id, check_in, check_out) VALUES (?,?,?,?)").run(stayId, propertyId, DEMO_PROPERTY.checkIn, DEMO_PROPERTY.checkOut);
+    d.prepare("INSERT INTO stays (id, property_id, check_in, check_out) VALUES (?,?,?,?)").run(
+      stayId, propertyId, listing ? listing.checkIn || null : DEMO_PROPERTY.checkIn, listing ? listing.checkOut || null : DEMO_PROPERTY.checkOut,
+    );
     const groupId = newId("grp");
     d.prepare(
       "INSERT INTO groups (id, stay_id, name, organizer_user_id, status, max_parties, max_party_size, is_demo) VALUES (?,?,?,?,?,?,?,?)",
@@ -113,6 +143,7 @@ export function createGroup(raw: CreateGroupInput, existingUserId?: string | nul
       );
     }
     logActivity(d, groupId, userId, "group.created", `${input.organizerName} created the group`);
+    if (listing?.rooms.length) logActivity(d, groupId, userId, "property.imported", `${listing.rooms.length} bedrooms imported from the listing`);
     return { groupId, userId, sessionToken, partyIds };
   });
 }
@@ -401,3 +432,15 @@ export function applyListingImport(actorId: string, groupId: string, raw: z.inpu
     return { rooms: input.rooms.length, reopened };
   });
 }
+
+/** Property data gathered from a listing during group creation (all reviewed by the organizer). */
+export const groupListingSchema = z.object({
+  listingUrl: z.string().trim().max(500).optional().or(z.literal("")),
+  location: z.string().trim().max(120).default(""),
+  description: z.string().trim().max(1000).default(""),
+  checkIn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
+  checkOut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
+  sharedAmenities: z.array(z.string().trim().min(1).max(60)).max(40).default([]),
+  costItems: costItemsSchema.or(z.array(z.never()).length(0)).default([]),
+  rooms: z.array(roomSchema.omit({ id: true }).extend({ photoData: photoData.nullable().optional() })).max(30).default([]),
+});

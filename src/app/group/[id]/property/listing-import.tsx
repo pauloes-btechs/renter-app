@@ -60,6 +60,16 @@ export function ListingImport({ groupId, listingUrl, roomCount, submittedCount }
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Analysis failed.");
+      if (json.photos?.length > photos.length) {
+        const extra = await Promise.all(
+          (json.photos as { dataUrl: string }[]).slice(photos.length).map(async (p) => {
+            const blob = await (await fetch(p.dataUrl)).blob();
+            return { name: "from listing", dataUrl: p.dataUrl, thumb: await compress(new File([blob], "listing.jpg", { type: "image/jpeg" }), 640, 0.7) };
+          }),
+        );
+        setPhotos((cur) => [...cur, ...extra].slice(0, MAX_PHOTOS));
+      }
+      if (json.notice) setError(json.notice);
       setDraft(json.draft);
       setShared((json.draft as ImportDraft).sharedAmenities.join(", "));
       setAnalyzer(json.analyzer);
@@ -115,8 +125,8 @@ export function ListingImport({ groupId, listingUrl, roomCount, submittedCount }
       {!draft ? (
         <div className="space-y-5">
           <Notice>
-            Roomsplit doesn&apos;t read Airbnb or Vrbo pages directly — their terms prohibit automated access. Open the listing in your browser, save its bedroom photos (or
-            screenshot them), and copy the <strong>“Where you&apos;ll sleep”</strong> and <strong>“What this place offers”</strong> sections below.
+            For sites that allow it, the link alone is enough. Airbnb, Vrbo and Booking.com prohibit automated reading — for those, select all on the listing page
+            (⌘A, ⌘C), paste it below and add the bedroom photos.
           </Notice>
           <label className="block">
             <span className="text-sm font-medium">Listing link</span>
@@ -169,7 +179,7 @@ export function ListingImport({ groupId, listingUrl, roomCount, submittedCount }
           {error && <Notice tone="bad">{error}</Notice>}
           <div className="flex flex-wrap items-center justify-end gap-3">
             <span className="text-xs text-ink-400">Photos are downscaled in your browser and sent only for this analysis.</span>
-            <button className={btn.primary} disabled={busy || (photos.length === 0 && text.trim().length < 20)} onClick={analyze} data-testid="analyze-listing">
+            <button className={btn.primary} disabled={busy || (!url.trim() && photos.length === 0 && text.trim().length < 20)} onClick={analyze} data-testid="analyze-listing">
               {busy ? "Analyzing photos…" : "Analyze listing"}
             </button>
           </div>

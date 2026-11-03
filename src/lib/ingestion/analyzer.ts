@@ -1,4 +1,4 @@
-import { listingAnalysisSchema, BED_SIZES, ROOM_SIZES, type ListingAnalysis } from "./analysis";
+import { listingAnalysisSchema, BED_SIZES, COST_KINDS, ROOM_SIZES, type ListingAnalysis } from "./analysis";
 
 export interface ListingPhoto {
   /** data:image/jpeg;base64,… (client-compressed) */
@@ -39,6 +39,10 @@ Rules:
 4. Do not invent rooms. If the text lists a bedroom with no photos, include it with confidence ≤ 0.4.
    Use confidence (0–1) to show how sure you are, and notes for anything the organizer should double-check.
 5. label: a short human name such as "Primary suite", "Ocean-view queen", "Bunk room". Use photoIndexes (0-based) for the photos of that room.
+6. property: extract whole-listing facts that appear in the text — name (listing title), location (city/region), a 1–3 sentence
+   description, currency (ISO code), checkIn/checkOut (YYYY-MM-DD) and nights if dates are shown, maxGuests, and the price:
+   costItems for each line shown (e.g. "$450 x 4 nights" → base, cleaning fee → cleaning, service fee → service, taxes → tax),
+   with amounts in major units (dollars, not cents), and totalAmount for the whole stay. Never guess a price that isn't shown.
 Call the ${TOOL_NAME} tool exactly once.`;
 
 export const ANALYSIS_TOOL = {
@@ -47,6 +51,28 @@ export const ANALYSIS_TOOL = {
   input_schema: {
     type: "object",
     properties: {
+      property: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          location: { type: "string" },
+          description: { type: "string" },
+          currency: { type: "string" },
+          checkIn: { type: "string" },
+          checkOut: { type: "string" },
+          nights: { type: "integer" },
+          maxGuests: { type: "integer" },
+          costItems: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { label: { type: "string" }, kind: { type: "string", enum: [...COST_KINDS] }, amount: { type: "number" } },
+              required: ["label", "kind", "amount"],
+            },
+          },
+          totalAmount: { type: "number" },
+        },
+      },
       propertyName: { type: "string" },
       sharedAmenities: { type: "array", items: { type: "string" } },
       warnings: { type: "array", items: { type: "string" } },
@@ -151,7 +177,29 @@ export class MockListingAnalyzer implements ListingAnalyzer {
     };
     const n = Math.max(bedLines.length, Math.min(4, Math.ceil(input.photos.length / 2)), 1);
     const shared = lines.filter((l) => /air|wifi|wi-fi|heating|kitchen|washer|parking|hot tub|pool/i.test(l) && l.length < 50);
+    const money = (l: string) => {
+      const m = /\$\s?([\d,]+(?:\.\d{1,2})?)/.exec(l);
+      return m ? Number(m[1].replace(/,/g, "")) : null;
+    };
+    const kindOf = (l: string) => (/clean/i.test(l) ? "cleaning" : /service/i.test(l) ? "service" : /tax/i.test(l) ? "tax" : /night/i.test(l) ? "base" : "other");
+    const totalLine = lines.find((l) => /^total/i.test(l) && money(l) != null);
+    const costItems = lines
+      .filter((l) => l !== totalLine && money(l) != null && /night|fee|tax|clean/i.test(l))
+      .map((l) => {
+        const nightly = /\$\s?([\d,]+(?:\.\d+)?)\s*x\s*(\d+)\s*nights?/i.exec(l);
+        const amount = nightly ? Number(nightly[1].replace(/,/g, "")) * Number(nightly[2]) : money(l)!;
+        return { label: l.replace(/\s*\$.*$/, "").slice(0, 60) || "Stay", kind: kindOf(l), amount };
+      });
+    const loc = lines.find((l) => /,\s*[A-Z][a-z]+/.test(l) && l.length < 60 && !/bedroom|bed/i.test(l));
     return listingAnalysisSchema.parse({
+      property: {
+        name: lines[0] && lines[0].length < 80 && !/bedroom|where you/i.test(lines[0]) ? lines[0] : "",
+        location: loc ?? "",
+        description: "",
+        currency: /\$/.test(input.text) ? "USD" : undefined,
+        costItems,
+        totalAmount: totalLine ? money(totalLine)! : undefined,
+      },
       propertyName: "",
       sharedAmenities: shared.length ? shared : ["Air conditioning", "Wi-Fi"],
       rooms: Array.from({ length: n }, (_, i) => {

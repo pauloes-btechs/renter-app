@@ -45,7 +45,7 @@ Without `APP_SECRET`, a local `npm start` generates one in `data/.secret` and pr
 ## Tests
 
 ```bash
-npm test            # 72 unit + integration tests (engine, auction, services, authorization, concurrency)
+npm test            # 82 unit + integration tests (engine, auction, services, authorization, concurrency)
 npm run test:e2e    # Playwright: multi-browser journeys, mobile + desktop screenshots → e2e/screenshots/
 npm run typecheck
 ```
@@ -120,7 +120,23 @@ PartyCost(p) = n[p] × SharedCostPerPerson + RoomCost(room(p))
 5. **Engines:** exhaustive enumeration with static pruning is used up to 8! = 40,320 assignments. Beyond that, a deterministic local search (swaps and moves) takes over, behind the same `AssignmentOptimizer` interface. A mixed-integer or CP-SAT solver can be added the same way.
 6. **No feasible plan:** you get a diagnosis instead. It names parties with no workable room, applies Hall's-condition checks for groups of parties competing for too few rooms, flags hard budgets below the lowest possible price, and suggests concrete fixes.
 
-## Listing import (photos → bedrooms)
+## Starting a group from a listing link
+
+**Create group** starts with the rental listing. Paste its link and Roomsplit fills in the rest for the organizer to review:
+- property name, location and description
+- dates
+- the cost breakdown (nightly × nights, cleaning, service fees, taxes), always adding up to the listing's stated total
+- currency
+- shared amenities
+- every bedroom, with photos
+
+It also sets the number of parties to the number of bedrooms.
+
+- **Sites that allow automated reading:** the link alone is enough. The server checks `robots.txt` for our user agent, fetches the page, and reads its title, description, JSON-LD and text. It downloads up to 12 photos, resized with `sharp`. It only connects to public addresses: http(s), standard ports, no private IPs, every redirect re-checked, plus timeouts and size limits (`src/lib/ingestion/fetchListing.ts`).
+- **Airbnb, Vrbo, Booking.com, Expedia and similar:** these are never fetched, because their terms prohibit automated access. The link step asks the organizer to select-all and copy the listing page (⌘A, ⌘C), paste it, and add the bedroom photos. Extraction then works exactly the same way.
+- **Abuse protection:** the create-flow endpoint (`/api/listing/analyze`) is rate-limited per client (`LISTING_ANALYZE_PER_HOUR`, default 12, counted separately on each server instance).
+
+## Listing import on an existing group (photos → bedrooms)
 
 On **Property → Import from listing**, the organizer pastes the listing link, adds the listing's photos (drag and drop, file picker, or pasted screenshots, up to 16), and copies in the "Where you'll sleep" and "What this place offers" sections.
 

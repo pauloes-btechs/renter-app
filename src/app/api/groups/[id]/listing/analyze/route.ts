@@ -3,9 +3,7 @@ import { z } from "zod";
 import { getGroup } from "@/lib/server/repo";
 import { userFromSession } from "@/lib/server/services/auth";
 import { SESSION_COOKIE } from "@/lib/server/session";
-import { analysisToDraft } from "@/lib/ingestion/analysis";
-import { analyzeListingUrl } from "@/lib/ingestion";
-import { getListingAnalyzer } from "@/lib/ingestion/analyzer";
+import { ingestListing } from "@/lib/ingestion/ingest";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -31,24 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch {
     return NextResponse.json({ error: "Upload up to 16 photos (JPEG/PNG/WebP) and up to 20,000 characters of listing text." }, { status: 400 });
   }
-  if (body.photos.length === 0 && body.text.trim().length < 20)
-    return NextResponse.json({ error: "Add the listing's bedroom photos, or paste its sleeping-arrangement and amenity text." }, { status: 400 });
-  if (body.listingUrl && !analyzeListingUrl(body.listingUrl).valid) return NextResponse.json({ error: "That listing link isn't a valid web address." }, { status: 400 });
-
-  const analyzer = getListingAnalyzer();
-  if (!analyzer.available())
-    return NextResponse.json(
-      { error: "Photo analysis isn't configured on this server. Set GEMINI_API_KEY (free from Google AI Studio) or ANTHROPIC_API_KEY, then redeploy.", code: "not_configured" },
-      { status: 503 },
-    );
-  try {
-    const analysis = await analyzer.analyze({ listingUrl: body.listingUrl, text: body.text, photos: body.photos });
-    const draft = analysisToDraft(analysis);
-    // Clamp photo references to what was actually uploaded.
-    draft.rooms.forEach((r) => (r.photoIndexes = r.photoIndexes.filter((i) => i < body.photos.length)));
-    return NextResponse.json({ analyzer: analyzer.name, draft });
-  } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Analysis failed." }, { status: 502 });
-  }
+  const r = await ingestListing({ listingUrl: body.listingUrl, text: body.text, photos: body.photos });
+  if (!r.ok) return NextResponse.json({ error: r.error, code: r.code, platform: r.platform }, { status: r.status });
+  return NextResponse.json(r);
 }
