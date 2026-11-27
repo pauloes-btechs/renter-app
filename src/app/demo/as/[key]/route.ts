@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db/client";
 import { demoPersonas, findDemoGroup, seedDemo } from "@/lib/demo/seed";
 import { createSession } from "@/lib/server/services/auth";
 import { DEMO_KEY_COOKIE, demoAllowed } from "@/lib/server/demoGate";
-import { SESSION_COOKIE } from "@/lib/server/session";
+import { SESSION_COOKIE, sessionCookieOptions } from "@/lib/server/session";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ key: string }> }) {
   const { key } = await params;
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ key:
   if (!u?.is_demo) return new NextResponse("Not a demo user", { status: 403 });
   const token = createSession(getDb(), persona.userId, 1);
   const res = NextResponse.redirect(new URL(persona.landing, req.url));
-  res.cookies.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 });
+  res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(60 * 60 * 24));
   if (qk) res.cookies.set(DEMO_KEY_COOKIE, qk, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 });
   return res;
 }

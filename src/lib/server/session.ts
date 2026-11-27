@@ -21,15 +21,13 @@ export async function requireViewer(next?: string) {
   return v;
 }
 
+export function sessionCookieOptions(maxAge = 60 * 60 * 24 * 30) {
+  return { httpOnly: true, sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", path: "/", maxAge };
+}
+
 export async function setSessionCookie(token: string) {
   const c = await cookies();
-  c.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-  });
+  c.set(SESSION_COOKIE, token, sessionCookieOptions());
 }
 
 /** Signs out: revokes the session server-side (a copied cookie stops working) and drops the cookie. */
