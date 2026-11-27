@@ -1,5 +1,7 @@
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import { describe, expect, it } from "vitest";
-import { extractListing, fetchListing, isPrivateAddress, prohibitedPlatform, robotsAllows, type FetchDeps } from "@/lib/ingestion/fetchListing";
+import { extractListing, fetchListing, isPrivateAddress, pinnedFetch, prohibitedPlatform, robotsAllows, type FetchDeps } from "@/lib/ingestion/fetchListing";
 import { ingestListing } from "@/lib/ingestion/ingest";
 import { MockListingAnalyzer } from "@/lib/ingestion/analyzer";
 import { analysisToDraft } from "@/lib/ingestion/analysis";
@@ -48,6 +50,22 @@ describe("listing fetch safety", () => {
     );
     expect(redirect.ok).toBe(false);
     if (!redirect.ok) expect(redirect.message).toMatch(/publicly reachable/);
+  });
+  it("re-checks the address at connect time (DNS rebinding)", async () => {
+    const server = http.createServer((_, res) => res.writeHead(200, { "content-type": "text/plain" }).end("hello"));
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    const { port } = server.address() as AddressInfo;
+    const init = { headers: {}, signal: new AbortController().signal };
+    try {
+      await expect(pinnedFetch(`http://localhost:${port}/`, init)).rejects.toThrow(/publicly reachable/);
+      // IP literals skip DNS (safeGet's assertPublic checks those); this shows the response is passed through intact.
+      const res = await pinnedFetch(`http://127.0.0.1:${port}/`, init);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("text/plain");
+      expect(await res.text()).toBe("hello");
+    } finally {
+      server.close();
+    }
   });
   it("respects robots.txt", async () => {
     expect(robotsAllows("User-agent: *\nDisallow: /rooms/", "/rooms/5")).toBe(false);

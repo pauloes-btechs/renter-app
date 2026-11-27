@@ -1,5 +1,9 @@
+import dnsCb from "node:dns";
 import dns from "node:dns/promises";
+import http from "node:http";
+import https from "node:https";
 import net from "node:net";
+import { Readable } from "node:stream";
 
 /**
  * Fetch a listing page the organizer pasted — only where that's permitted.
@@ -56,12 +60,36 @@ export interface FetchDeps {
   fetch: typeof fetch;
   lookup: (host: string) => Promise<string[]>;
 }
+export class FetchBlocked extends Error {}
+
+// Re-checks the address at connect time, so a DNS answer can't turn private between assertPublic and the request (rebinding).
+const publicOnlyLookup: net.LookupFunction = (host, opts, cb) =>
+  dnsCb.lookup(host, { ...opts, all: true }, (err, addrs) => {
+    if (err) return cb(err, "", 0);
+    if (addrs.length === 0 || addrs.some((a) => isPrivateAddress(a.address))) return cb(new FetchBlocked("That address isn't publicly reachable."), "", 0);
+    if (opts.all) return (cb as unknown as (e: null, a: dnsCb.LookupAddress[]) => void)(null, addrs);
+    cb(null, addrs[0].address, addrs[0].family);
+  });
+
+/** GET via node:http(s) with the public-only lookup. Only what safeGet uses: headers, signal, manual redirects. */
+export function pinnedFetch(url: string, init: { headers: Record<string, string>; signal: AbortSignal }): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const req = (url.startsWith("https:") ? https : http).get(url, { headers: init.headers, signal: init.signal, lookup: publicOnlyLookup }, (res) => {
+      const headers = new Headers();
+      for (let i = 0; i < res.rawHeaders.length; i += 2) headers.append(res.rawHeaders[i], res.rawHeaders[i + 1]);
+      const status = res.statusCode ?? 502;
+      const noBody = [204, 205, 304].includes(status);
+      if (noBody) res.resume();
+      resolve(new Response(noBody ? null : (Readable.toWeb(res) as ReadableStream), { status, headers }));
+    });
+    req.on("error", reject);
+  });
+}
+
 const defaultDeps: FetchDeps = {
-  fetch,
+  fetch: pinnedFetch as unknown as typeof fetch,
   lookup: async (host) => (await dns.lookup(host, { all: true })).map((a) => a.address),
 };
-
-export class FetchBlocked extends Error {}
 
 async function assertPublic(u: URL, deps: FetchDeps) {
   if (!/^https?:$/.test(u.protocol)) throw new FetchBlocked("Only http(s) links are supported.");
