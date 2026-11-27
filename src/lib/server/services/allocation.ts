@@ -86,7 +86,7 @@ export function runOptimization(actorId: string, groupId: string): { versionId: 
     const result = optimize({ config: inputs.config, parties: inputs.parties, rooms: inputs.rooms });
     let auction: AuctionResult | null = null;
     if (inputs.method !== "weighted") {
-      auction = runAuction(inputs.config, inputs.parties, inputs.rooms);
+      auction = runAuction(inputs.config, inputs.parties, inputs.rooms, inputs.currency);
       const ev = auction.feasible && auction.assignment ? evaluateAssignment(inputs, auction.assignment, auction.prices) : null;
       if (auction.feasible && !ev) {
         auction.feasible = false;

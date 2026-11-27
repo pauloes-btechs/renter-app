@@ -62,7 +62,7 @@ export function canBid(p: PartyInput, r: RoomInput) {
   return typeof b === "number" && b > 0 && staticBlocks(p, r).length === 0;
 }
 
-export function runAuction(config: PricingConfig, partiesIn: PartyInput[], roomsIn: RoomInput[]): AuctionResult {
+export function runAuction(config: PricingConfig, partiesIn: PartyInput[], roomsIn: RoomInput[], currency = "USD"): AuctionResult {
   const parties = orderParties(partiesIn);
   const rooms = orderRooms(roomsIn);
   const T = config.totalCents;
@@ -137,7 +137,7 @@ export function runAuction(config: PricingConfig, partiesIn: PartyInput[], rooms
   if (welfare < T) {
     return {
       ...empty, assignment, key, welfareCents: welfare, evaluated, rooms: stats(assignment, {}),
-      conflicts: [`The best arrangement's bids total ${formatMoney(welfare)}, which is ${formatMoney(T - welfare)} short of the ${formatMoney(T)} rental.`],
+      conflicts: [`The best arrangement's bids total ${formatMoney(welfare, currency)}, which is ${formatMoney(T - welfare, currency)} short of the ${formatMoney(T, currency)} rental.`],
       suggestions: ["Bids must collectively cover the rent. Parties can raise bids on rooms they'd accept, or the group can use the weighted model."],
     };
   }
@@ -220,7 +220,7 @@ export function runAuction(config: PricingConfig, partiesIn: PartyInput[], rooms
   const suggestions: string[] = [];
   for (const p of parties) {
     if (p.budget.hardMax && prices[p.id] > p.budget.maxCents) {
-      conflicts.push(`${p.name}'s clearing price ${formatMoney(prices[p.id])} is above their hard maximum ${formatMoney(p.budget.maxCents)}.`);
+      conflicts.push(`${p.name}'s clearing price ${formatMoney(prices[p.id], currency)} is above their hard maximum ${formatMoney(p.budget.maxCents, currency)}.`);
       suggestions.push(`${p.name} should lower bids on rooms they can't afford, or other parties can bid more for contested rooms.`);
     }
   }

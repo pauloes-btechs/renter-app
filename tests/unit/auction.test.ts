@@ -38,6 +38,7 @@ describe("runAuction", () => {
     const r = runAuction(demoConfig(), low, demoRooms());
     expect(r.feasible).toBe(false);
     expect(r.conflicts[0]).toMatch(/short of/);
+    expect(runAuction(demoConfig(), low, demoRooms(), "EUR").conflicts[0]).toMatch(/€/);
   });
 
   it("requires a bid on a compatible room", () => {

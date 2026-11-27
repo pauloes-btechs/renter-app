@@ -183,7 +183,8 @@ export function getGroupView(groupId: string, viewerId: string) {
     auction = {
       feasible: a.feasible,
       envyFree: a.envyFree,
-      conflicts: isOrganizer ? a.conflicts : a.conflicts.filter((c) => !c.includes("$") || (myParty && c.startsWith(myParty.name))),
+      // Conflicts with amounts (formatMoney always prints 2 decimals) are private to the organizer and the party they name.
+      conflicts: isOrganizer ? a.conflicts : a.conflicts.filter((c) => !/\d\.\d\d/.test(c) || (myParty && c.startsWith(`${myParty.name}'s `))),
       suggestions: a.suggestions,
       marketWeights: a.marketWeights,
       // Raw bid levels are private; only the organizer sees the top-two bid spread (no party names attached).
