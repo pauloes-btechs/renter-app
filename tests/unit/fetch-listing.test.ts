@@ -113,6 +113,12 @@ describe("extraction", () => {
 
 describe("ingestListing", () => {
   const analyzer = new MockListingAnalyzer();
+  it("rejects links that aren't http(s) web addresses", async () => {
+    for (const listingUrl of ["not a link", "ftp://example.com/x", "javascript:alert(1)"]) {
+      const r = await ingestListing({ listingUrl, text: "", photos: [] }, { analyzer });
+      expect(r.ok || r.code).toBe("invalid");
+    }
+  });
   it("asks for pasted content when the platform prohibits fetching", async () => {
     const r = await ingestListing({ listingUrl: "https://www.airbnb.com/rooms/9", text: "", photos: [] }, { analyzer });
     expect(r.ok).toBe(false);

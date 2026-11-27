@@ -82,7 +82,7 @@ src/lib/server/
   views.ts             per-viewer read model (authorization + privacy filtering in one place)
   session.ts, page.ts  cookie sessions; pages 404 unless the viewer is the organizer or a member
 src/app/               Next.js App Router pages + server actions (actions.ts)
-src/lib/ingestion/     property-source abstraction (manual today; listing URL recorded, never scraped)
+src/lib/ingestion/     listing import: permitted fetch, photo/text analysis, draft mapping
 ```
 
 **Data model.** User, Session, AccessLink, Property, PropertyCostItem, Room, RoomAmenity, Stay, Group, PricingConfiguration, Party, PartyMembership, Invitation, Questionnaire (each member's draft), PartyPreferences (the party's finalized answers), ProposalVersion (a snapshot of the inputs plus their hash), AllocationProposal, RoomAssignment, CostBreakdown, Vote, Comment, Agreement, LedgerEntry, ActivityEvent.
@@ -208,6 +208,6 @@ How the auction works:
 ## Future scaling
 
 - Multiple properties and bookings per organizer. The data model already separates Property, Stay and Group.
-- Listing import through an official partner API or owner export, implementing `PropertySource`, with organizer review of the imported bedrooms and fees.
+- Listing import through an official partner API or owner export, with organizer review of the imported bedrooms and fees.
 - A solver-backed optimizer for large houses or cohorts. Other room-pricing mechanisms (for example Spliddit-style lexicographic maximin) could also be added behind the same interfaces.
 - Payment collection from `ledger_entries`.

@@ -1,7 +1,6 @@
 import { analysisToDraft, type ImportDraft } from "./analysis";
 import { getListingAnalyzer, type ListingAnalyzer } from "./analyzer";
 import { fetchListing, type FetchedListing } from "./fetchListing";
-import { analyzeListingUrl } from "./index";
 
 export interface IngestInput {
   listingUrl?: string;
@@ -24,7 +23,7 @@ export async function ingestListing(
   deps: { analyzer?: ListingAnalyzer; fetcher?: (url: string) => Promise<FetchedListing> } = {},
 ): Promise<IngestResult> {
   const url = input.listingUrl?.trim() ?? "";
-  if (url && !analyzeListingUrl(url).valid) return { ok: false, status: 400, code: "invalid", error: "That listing link isn't a valid web address." };
+  if (url && !(URL.canParse(url) && /^https?:$/.test(new URL(url).protocol))) return { ok: false, status: 400, code: "invalid", error: "That listing link isn't a valid web address." };
   let text = input.text ?? "";
   let photos = input.photos ?? [];
   let source: "fetched" | "pasted" | "fetched+pasted" = "pasted";
