@@ -1,7 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { userFromSession } from "./services/auth";
+import { revokeSession, userFromSession } from "./services/auth";
 
 export const SESSION_COOKIE = "rs_session";
 
@@ -32,7 +32,10 @@ export async function setSessionCookie(token: string) {
   });
 }
 
+/** Signs out: revokes the session server-side (a copied cookie stops working) and drops the cookie. */
 export async function clearSessionCookie() {
   const c = await cookies();
+  const token = c.get(SESSION_COOKIE)?.value;
+  if (token) revokeSession(token);
   c.delete(SESSION_COOKIE);
 }

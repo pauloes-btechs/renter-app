@@ -11,7 +11,7 @@ import { getDraft, saveDraft, submitPreferences } from "@/lib/server/services/qu
 import {
   approvalState, applyMarketWeights, castVote, finalizeAgreement, openVoting, reopenAgreement, runOptimization, selectProposal, selectedProposal,
 } from "@/lib/server/services/allocation";
-import { createAccessLink, redeemAccessLink, userFromSession } from "@/lib/server/services/auth";
+import { createAccessLink, redeemAccessLink, revokeSession, userFromSession } from "@/lib/server/services/auth";
 import { DEMO_EXPECTED } from "@/lib/demo/fixture";
 
 function breakdowns(proposalId: string) {
@@ -175,6 +175,8 @@ describe("invitations & membership", () => {
     expect(() => joinViaInvitation(inv.token, { displayName: "Cat" })).toThrow(/full/);
     expect(() => joinViaInvitation(inv.token, { displayName: "ana" })).toThrow();
     expect(userFromSession(a.sessionToken)!.display_name).toBe("Ana");
+    revokeSession(a.sessionToken!); // what sign-out does
+    expect(userFromSession(a.sessionToken)).toBeNull();
     expect(b.partyId).toBe(p1.id);
     // A two-person party is one party with one room
     expect(listParties(g.groupId)).toHaveLength(2);
