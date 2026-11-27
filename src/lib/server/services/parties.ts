@@ -99,10 +99,6 @@ export function revokeInvitation(actorId: string, groupId: string, invitationId:
   });
 }
 
-export function invitationLinkToken(inv: InvitationRow): string {
-  return decrypt(inv.token_enc);
-}
-
 export function listInvitations(actorId: string, groupId: string) {
   const d = getDb();
   const g = requireGroup(d, groupId);
@@ -110,7 +106,7 @@ export function listInvitations(actorId: string, groupId: string) {
   const isOrganizer = g.organizer_user_id === actorId;
   return rows
     .filter((r) => isOrganizer || (r.party_id && getParty(r.party_id, d)?.representative_user_id === actorId))
-    .map((r) => ({ ...r, token: invitationLinkToken(r), active: inviteActive(r) }));
+    .map((r) => ({ ...r, token: decrypt(r.token_enc), active: inviteActive(r) }));
 }
 
 export function inviteActive(inv: InvitationRow) {
@@ -135,7 +131,6 @@ export function resolveInvitation(token: string) {
     group: { id: g.id, name: g.name, maxPartySize: g.max_party_size, maxParties: g.max_parties },
     party: party ? parties.find((p) => p.id === party.id)! : null,
     openParties: parties.filter((p) => p.members.length < g.max_party_size),
-    canCreateParty: false,
   };
 }
 

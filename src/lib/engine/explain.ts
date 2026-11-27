@@ -1,5 +1,5 @@
 import { formatMoney, formatBps } from "./money";
-import type { EvaluatedAssignment, Proposal } from "./optimizer";
+import type { Proposal } from "./optimizer";
 import { PRIORITY_LABELS, type PartyInput, type PricingConfig, type RoomInput } from "./types";
 import { STRATEGY_DESCRIPTIONS } from "./scoring";
 
@@ -129,8 +129,4 @@ export function explainProposal(
       ? "Every party gets its first-choice bedroom within budget."
       : `${ev.metrics.firstChoiceCount} of ${ev.parties.length} parties get their first choice; trade-offs are spread to protect the least-satisfied party.`;
   return { summary, facts, judgments, comparison, parties: partyEx };
-}
-
-export function describeEvaluation(ev: EvaluatedAssignment) {
-  return ev.key;
 }

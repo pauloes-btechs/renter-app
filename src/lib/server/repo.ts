@@ -43,9 +43,6 @@ export interface InvitationRow {
 
 export const db = () => getDb();
 
-export function getUser(id: string, d: DB = db()): UserRow | undefined {
-  return d.prepare("SELECT * FROM users WHERE id = ?").get(id) as UserRow | undefined;
-}
 export function getGroup(id: string, d: DB = db()): GroupRow | undefined {
   return d.prepare("SELECT * FROM groups WHERE id = ?").get(id) as GroupRow | undefined;
 }
