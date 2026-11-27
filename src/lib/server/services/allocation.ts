@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { z } from "zod";
-import { getDb, tx } from "../../db/client";
+import { tx } from "../../db/client";
 import { toPartyInput } from "../../domain/questionnaire";
 import { evaluateAssignment, explainProposal, formatMoney, optimize, runAuction, type AuctionResult, type OptimizationResult, type Proposal } from "../../engine";
 import type { PartyInput, PricingConfig, PricingMethod, RoomInput } from "../../engine/types";
@@ -346,16 +346,4 @@ export function reopenAgreement(actorId: string, groupId: string) {
     logActivity(d, groupId, actorId, "agreement.reopened", "Agreement reopened — approvals reset");
     bumpVersion(d, groupId);
   });
-}
-
-/** Called after approval-policy changes. */
-export function refreshApproval(groupId: string) {
-  return tx((d) => {
-    syncApproval(d, groupId);
-    bumpVersion(d, groupId);
-  });
-}
-
-export function getDbForViews() {
-  return getDb();
 }

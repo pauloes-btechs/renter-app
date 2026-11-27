@@ -54,7 +54,6 @@ export const analyzedPropertySchema = z.object({
     .default([]),
   totalAmount: z.number().min(0).max(1_000_000).optional(),
 });
-export type AnalyzedProperty = z.infer<typeof analyzedPropertySchema>;
 
 export const listingAnalysisSchema = z.object({
   property: analyzedPropertySchema.optional(),

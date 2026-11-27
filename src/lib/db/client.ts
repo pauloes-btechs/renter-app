@@ -42,14 +42,3 @@ export function tx<T>(fn: (db: DB) => T): T {
   const db = getDb();
   return db.transaction(() => fn(db)).immediate();
 }
-
-export function closeDb() {
-  if (g.__roomsplitDb) {
-    g.__roomsplitDb.db.close();
-    g.__roomsplitDb = undefined;
-  }
-}
-
-export function nowIso() {
-  return new Date().toISOString();
-}

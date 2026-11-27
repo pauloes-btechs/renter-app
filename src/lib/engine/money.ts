@@ -46,10 +46,6 @@ export function splitEqually(totalCents: number, parts: number): number[] {
   return allocateLargestRemainder(totalCents, Array.from({ length: parts }, () => 1));
 }
 
-export function dollarsToCents(d: number): number {
-  return Math.round(d * 100);
-}
-
 export function formatMoney(cents: number, currency = "USD", opts: { compact?: boolean } = {}): string {
   const fmt = new Intl.NumberFormat("en-US", {
     style: "currency",
