@@ -37,8 +37,9 @@ describe("listing fetch safety", () => {
     expect(called).toBe(false);
   });
   it("blocks private and internal addresses, including via redirects", async () => {
-    for (const ip of ["10.0.0.5", "127.0.0.1", "192.168.1.1", "172.20.0.1", "169.254.169.254", "::1", "fd00::1", "::ffff:10.0.0.1", "100.64.0.1"]) expect(isPrivateAddress(ip)).toBe(true);
+    for (const ip of ["10.0.0.5", "127.0.0.1", "192.168.1.1", "172.20.0.1", "169.254.169.254", "::1", "fd00::1", "::ffff:10.0.0.1", "::ffff:7f00:1", "100.64.0.1"]) expect(isPrivateAddress(ip)).toBe(true);
     expect(isPrivateAddress("93.184.216.34")).toBe(false);
+    expect(isPrivateAddress("::ffff:5db8:d822")).toBe(false);
     const internal = await fetchListing("https://intranet.example.com/x", deps({}, { "intranet.example.com": ["10.1.2.3"] }));
     expect(internal.ok).toBe(false);
     const redirect = await fetchListing(
