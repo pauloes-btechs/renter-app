@@ -104,19 +104,7 @@ export function createGroup(raw: CreateGroupInput & { listing?: z.input<typeof g
       d.prepare("INSERT INTO property_cost_items (id, property_id, label, kind, amount_cents, sort) VALUES (?,?,?,?,?,?)").run(newId("cost"), propertyId, c.label, c.kind, c.amountCents, i),
     );
     if (listing?.rooms.length) {
-      listing.rooms.forEach((r, i) => {
-        const id = insertRoomFromTemplate(
-          d,
-          propertyId,
-          {
-            key: "import", name: r.name, shortName: r.shortName || `Bedroom ${i + 1}`, bedConfig: r.bedConfig, capacity: r.capacity, bedCount: r.bedCount,
-            hasBunk: r.hasBunk, accessible: r.accessible, weightMilli: r.weightMilli, qualityRating: r.qualityRating, description: r.description,
-            imageKey: r.imageKey, attributes: r.attributes, amenities: r.amenities.map((label) => ({ label, icon: "dot" })),
-          },
-          i,
-        );
-        if (r.photoData) d.prepare("UPDATE rooms SET photo_data=? WHERE id=?").run(r.photoData, id);
-      });
+      insertImportedRooms(d, propertyId, listing.rooms);
     } else {
       DEMO_ROOMS.forEach((t, i) => insertRoomFromTemplate(d, propertyId, t, i));
     }
@@ -386,11 +374,30 @@ const photoData = z
   .max(1_500_000)
   .regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/, "Invalid photo");
 
+const importedRoomSchema = roomSchema.omit({ id: true }).extend({ photoData: photoData.nullable().optional() });
+
+/** Inserts reviewed listing-import rooms in order, with their cover photos. */
+function insertImportedRooms(d: DB, propertyId: string, rooms: z.infer<typeof importedRoomSchema>[]) {
+  rooms.forEach((r, i) => {
+    const id = insertRoomFromTemplate(
+      d,
+      propertyId,
+      {
+        key: "import", name: r.name, shortName: r.shortName || `Bedroom ${i + 1}`, bedConfig: r.bedConfig, capacity: r.capacity, bedCount: r.bedCount,
+        hasBunk: r.hasBunk, accessible: r.accessible, weightMilli: r.weightMilli, qualityRating: r.qualityRating, description: r.description,
+        imageKey: r.imageKey, attributes: r.attributes, amenities: r.amenities.map((label) => ({ label, icon: "dot" })),
+      },
+      i,
+    );
+    if (r.photoData) d.prepare("UPDATE rooms SET photo_data=? WHERE id=?").run(r.photoData, id);
+  });
+}
+
 export const listingImportSchema = z.object({
   listingUrl: z.string().trim().max(500).optional().or(z.literal("")),
   propertyName: z.string().trim().max(80).optional().or(z.literal("")),
   sharedAmenities: z.array(z.string().trim().min(1).max(60)).max(40),
-  rooms: z.array(roomSchema.omit({ id: true }).extend({ photoData: photoData.nullable().optional() })).min(1).max(30),
+  rooms: z.array(importedRoomSchema).min(1).max(30),
 });
 
 /**
@@ -406,19 +413,7 @@ export function applyListingImport(actorId: string, groupId: string, raw: z.inpu
     const p = getPropertyForGroup(groupId, d);
     materialChange(d, groupId, actorId, "bedrooms replaced from listing import");
     d.prepare("DELETE FROM rooms WHERE property_id=?").run(p.id);
-    input.rooms.forEach((r, i) => {
-      const id = insertRoomFromTemplate(
-        d,
-        p.id,
-        {
-          key: "import", name: r.name, shortName: r.shortName || `Bedroom ${i + 1}`, bedConfig: r.bedConfig, capacity: r.capacity, bedCount: r.bedCount,
-          hasBunk: r.hasBunk, accessible: r.accessible, weightMilli: r.weightMilli, qualityRating: r.qualityRating, description: r.description,
-          imageKey: r.imageKey, attributes: r.attributes, amenities: r.amenities.map((label) => ({ label, icon: "dot" })),
-        },
-        i,
-      );
-      if (r.photoData) d.prepare("UPDATE rooms SET photo_data=? WHERE id=?").run(r.photoData, id);
-    });
+    insertImportedRooms(d, p.id, input.rooms);
     const reopened = d.prepare("DELETE FROM party_preferences WHERE party_id IN (SELECT id FROM parties WHERE group_id=?)").run(groupId).changes;
     d.prepare("UPDATE properties SET shared_amenities_json=?, listing_url=COALESCE(?, listing_url), source_kind='import', name=COALESCE(?, name) WHERE id=?").run(
       JSON.stringify(input.sharedAmenities), input.listingUrl || null, input.propertyName || null, p.id,
@@ -442,5 +437,5 @@ export const groupListingSchema = z.object({
   checkOut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
   sharedAmenities: z.array(z.string().trim().min(1).max(60)).max(40).default([]),
   costItems: costItemsSchema.or(z.array(z.never()).length(0)).default([]),
-  rooms: z.array(roomSchema.omit({ id: true }).extend({ photoData: photoData.nullable().optional() })).max(30).default([]),
+  rooms: z.array(importedRoomSchema).max(30).default([]),
 });
