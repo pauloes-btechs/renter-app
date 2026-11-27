@@ -42,7 +42,13 @@ export function isPrivateAddress(ip: string): boolean {
   }
   const v = ip.toLowerCase();
   if (v === "::1" || v === "::") return true;
-  if (v.startsWith("::ffff:")) return isPrivateAddress(v.slice(7));
+  if (v.startsWith("::ffff:")) {
+    const rest = v.slice(7);
+    if (net.isIPv4(rest)) return isPrivateAddress(rest);
+    // URL parsing normalizes [::ffff:127.0.0.1] to the hex form ::ffff:7f00:1.
+    const [hi, lo] = rest.split(":").map((h) => parseInt(h, 16));
+    return isPrivateAddress(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
+  }
   return v.startsWith("fc") || v.startsWith("fd") || v.startsWith("fe80");
 }
 
