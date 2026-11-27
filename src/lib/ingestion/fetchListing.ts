@@ -57,7 +57,7 @@ export function isPrivateAddress(ip: string): boolean {
 }
 
 export interface FetchDeps {
-  fetch: typeof fetch;
+  fetch: (url: string, init: { headers: Record<string, string>; signal: AbortSignal }) => Promise<Response>;
   lookup: (host: string) => Promise<string[]>;
 }
 export class FetchBlocked extends Error {}
@@ -71,23 +71,28 @@ const publicOnlyLookup: net.LookupFunction = (host, opts, cb) =>
     cb(null, addrs[0].address, addrs[0].family);
   });
 
-/** GET via node:http(s) with the public-only lookup. Only what safeGet uses: headers, signal, manual redirects. */
+/** GET via node:http(s) with the public-only lookup. Never follows redirects; safeGet re-checks each hop. */
 export function pinnedFetch(url: string, init: { headers: Record<string, string>; signal: AbortSignal }): Promise<Response> {
   return new Promise((resolve, reject) => {
     const req = (url.startsWith("https:") ? https : http).get(url, { headers: init.headers, signal: init.signal, lookup: publicOnlyLookup }, (res) => {
-      const headers = new Headers();
-      for (let i = 0; i < res.rawHeaders.length; i += 2) headers.append(res.rawHeaders[i], res.rawHeaders[i + 1]);
-      const status = res.statusCode ?? 502;
-      const noBody = [204, 205, 304].includes(status);
-      if (noBody) res.resume();
-      resolve(new Response(noBody ? null : (Readable.toWeb(res) as ReadableStream), { status, headers }));
+      try {
+        const headers = new Headers();
+        for (let i = 0; i < res.rawHeaders.length; i += 2) headers.append(res.rawHeaders[i], res.rawHeaders[i + 1]);
+        const status = res.statusCode ?? 502;
+        const noBody = [204, 205, 304].includes(status);
+        if (noBody) res.resume();
+        resolve(new Response(noBody ? null : (Readable.toWeb(res) as ReadableStream), { status, headers }));
+      } catch (e) {
+        res.destroy(); // e.g. status 999 or a malformed header: Response() throws, and this callback is outside the promise
+        reject(e);
+      }
     });
     req.on("error", reject);
   });
 }
 
 const defaultDeps: FetchDeps = {
-  fetch: pinnedFetch as unknown as typeof fetch,
+  fetch: pinnedFetch,
   lookup: async (host) => (await dns.lookup(host, { all: true })).map((a) => a.address),
 };
 
@@ -114,9 +119,8 @@ export async function safeGet(
     const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 8000);
     try {
       const res = await deps.fetch(current.toString(), {
-        redirect: "manual",
         signal: ctrl.signal,
-        headers: { "user-agent": USER_AGENT, accept: opts.accept },
+        headers: { "user-agent": USER_AGENT, accept: opts.accept, "accept-encoding": "identity" },
       });
       if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
         current = new URL(res.headers.get("location")!, current);
@@ -142,6 +146,7 @@ export async function safeGet(
       return { status: res.status, contentType: res.headers.get("content-type") || "", body: Buffer.concat(chunks), finalUrl: current.toString() };
     } finally {
       clearTimeout(timer);
+      ctrl.abort(); // frees the socket of an unread body (redirect hop, oversize); no-op once fully read
     }
   }
   throw new FetchBlocked("Too many redirects.");
