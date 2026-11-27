@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import { getDb } from "../db/client";
+import { newId } from "./crypto";
 import type { AttributeKey, RoomInput } from "../engine/types";
 import type { QuestionnaireData } from "../domain/questionnaire";
 
@@ -130,7 +131,7 @@ export function roomRowToInput(r: RoomRow): RoomInput {
 
 export function logActivity(d: DB, groupId: string, userId: string | null, type: string, message: string, data: unknown = {}) {
   d.prepare("INSERT INTO activity_events (id, group_id, user_id, type, message, data_json) VALUES (?, ?, ?, ?, ?, ?)").run(
-    `evt_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`,
+    newId("evt"),
     groupId,
     userId,
     type,
