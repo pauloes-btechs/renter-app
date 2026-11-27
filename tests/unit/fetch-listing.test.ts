@@ -1,8 +1,8 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { extractListing, fetchListing, isPrivateAddress, pinnedFetch, prohibitedPlatform, robotsAllows, type FetchDeps } from "@/lib/ingestion/fetchListing";
-import { ingestListing } from "@/lib/ingestion/ingest";
+import { ingestListing, rateLimited } from "@/lib/ingestion/ingest";
 import { MockListingAnalyzer } from "@/lib/ingestion/analyzer";
 import { analysisToDraft } from "@/lib/ingestion/analysis";
 
@@ -164,5 +164,21 @@ describe("ingestListing", () => {
     });
     expect(d.property.totalCents).toBe(118_050);
     expect(d.property.costItems[1]).toMatchObject({ kind: "other", amountCents: 18_050 });
+  });
+});
+
+describe("rateLimited", () => {
+  it("limits per key per hour, then lets the key back in", () => {
+    vi.useFakeTimers();
+    try {
+      expect(rateLimited("1.2.3.4", 2)).toBe(false);
+      expect(rateLimited("1.2.3.4", 2)).toBe(false);
+      expect(rateLimited("1.2.3.4", 2)).toBe(true);
+      expect(rateLimited("5.6.7.8", 2)).toBe(false);
+      vi.advanceTimersByTime(3_600_000);
+      expect(rateLimited("1.2.3.4", 2)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
