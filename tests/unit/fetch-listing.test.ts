@@ -52,7 +52,10 @@ describe("listing fetch safety", () => {
     if (!redirect.ok) expect(redirect.message).toMatch(/publicly reachable/);
   });
   it("re-checks the address at connect time (DNS rebinding)", async () => {
-    const server = http.createServer((_, res) => res.writeHead(200, { "content-type": "text/plain" }).end("hello"));
+    const server = http.createServer((req, res) => {
+      if (req.url === "/bad") return void req.socket.end("HTTP/1.1 999 Odd\r\ncontent-length: 0\r\n\r\n");
+      res.writeHead(200, { "content-type": "text/plain" }).end("hello");
+    });
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
     const { port } = server.address() as AddressInfo;
     const init = { headers: {}, signal: new AbortController().signal };
@@ -63,6 +66,7 @@ describe("listing fetch safety", () => {
       expect(res.status).toBe(200);
       expect(res.headers.get("content-type")).toBe("text/plain");
       expect(await res.text()).toBe("hello");
+      await expect(pinnedFetch(`http://127.0.0.1:${port}/bad`, init)).rejects.toThrow(); // rejects instead of an uncaught throw
     } finally {
       server.close();
     }
