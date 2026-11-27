@@ -64,9 +64,12 @@ export async function ingestListing(
 }
 
 /** Simple in-memory limiter for the unauthenticated create-flow endpoint (per instance). */
+// shortcut: keyed on a client-supplied header and per instance; move to a shared store keyed on a trusted IP when abuse shows up.
 const hits = new Map<string, number[]>();
 export function rateLimited(key: string, limit = Number(process.env.LISTING_ANALYZE_PER_HOUR || 12)): boolean {
   const now = Date.now();
+  // Drop clients idle for an hour, so one entry per address ever seen doesn't pile up.
+  for (const [k, ts] of hits) if (now - ts[ts.length - 1] >= 3_600_000) hits.delete(k);
   const recent = (hits.get(key) ?? []).filter((t) => now - t < 3_600_000);
   if (recent.length >= limit) {
     hits.set(key, recent);
