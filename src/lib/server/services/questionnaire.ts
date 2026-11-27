@@ -4,6 +4,7 @@ import {
   draftSchema,
   finalQuestionnaireSchema,
   mergeDraft,
+  normalizeRanking,
   type QuestionnaireData,
   type QuestionnaireDraft,
 } from "../../domain/questionnaire";
@@ -41,12 +42,6 @@ export function getDraft(actorId: string, partyId: string): QuestionnaireData {
   if (!row) return { ...base, roomRanking: normalizeRanking(base.roomRanking, roomIds) };
   const merged = mergeDraft(base, JSON.parse(row.data_json) as QuestionnaireDraft);
   return { ...merged, roomRanking: normalizeRanking(merged.roomRanking, roomIds), refusedRooms: merged.refusedRooms.filter((r) => roomIds.includes(r)) };
-}
-
-function normalizeRanking(ranking: string[], roomIds: string[]) {
-  const out = ranking.filter((r) => roomIds.includes(r));
-  for (const r of roomIds) if (!out.includes(r)) out.push(r);
-  return out;
 }
 
 /** Autosave. Never a material change — only submitting finalizes. */

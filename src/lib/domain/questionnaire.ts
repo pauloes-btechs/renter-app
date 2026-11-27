@@ -73,10 +73,14 @@ export function mergeDraft(base: QuestionnaireData, draft: QuestionnaireDraft): 
   } as QuestionnaireData;
 }
 
+/** Keep only rooms that still exist; append any new rooms at the end of the ranking. */
+export function normalizeRanking(ranking: string[], roomIds: string[]) {
+  const out = ranking.filter((r) => roomIds.includes(r));
+  for (const r of roomIds) if (!out.includes(r)) out.push(r);
+  return out;
+}
+
 export function toPartyInput(id: string, sort: number, q: QuestionnaireData, roomIds: string[]): PartyInput {
-  // Keep only rooms that still exist; append any new rooms at the end of the ranking.
-  const ranking = q.roomRanking.filter((r) => roomIds.includes(r));
-  for (const r of roomIds) if (!ranking.includes(r)) ranking.push(r);
   return {
     id,
     sort,
@@ -86,7 +90,7 @@ export function toPartyInput(id: string, sort: number, q: QuestionnaireData, roo
     budget: { idealCents: Math.min(q.idealBudgetCents, q.maxBudgetCents), maxCents: q.maxBudgetCents, hardMax: q.hardMax, premiumFlex: q.premiumFlex },
     priorities: q.priorities,
     topPriorities: q.topPriorities,
-    roomRanking: ranking,
+    roomRanking: normalizeRanking(q.roomRanking, roomIds),
     refusedRooms: q.refusedRooms.filter((r) => roomIds.includes(r)),
     premiumForFirstChoice: q.premiumForFirstChoice,
     bids: Object.fromEntries(Object.entries(q.bids ?? {}).filter(([r, v]) => roomIds.includes(r) && v > 0)),
