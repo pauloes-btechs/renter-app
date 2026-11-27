@@ -158,14 +158,6 @@ export async function resetDemoAction(): Promise<ActionResult> {
   return { ok: true, redirect: "/demo?reset=1" };
 }
 
-export async function inspectListingAction(groupId: string, url: string, details: Parameters<typeof updatePropertyDetails>[2]) {
-  const { analyzeListingUrl } = await import("@/lib/ingestion");
-  const a = analyzeListingUrl(url);
-  if (!a.valid) return { ok: false as const, error: a.message };
-  const r = await run((u) => updatePropertyDetails(u, groupId, { ...details, listingUrl: url }));
-  return r.ok ? { ok: true as const, data: a.message } : r;
-}
-
 export async function applyListingImportAction(groupId: string, input: Parameters<typeof import("@/lib/server/services/groups").applyListingImport>[2]) {
   const { applyListingImport } = await import("@/lib/server/services/groups");
   return run((u) => applyListingImport(u, groupId, input));
